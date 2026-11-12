@@ -4,7 +4,6 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 // Stable variation: changing a light or exporting never regenerates the plants.
 function randomSource(seed) {
@@ -46,12 +45,13 @@ export function oakTexture(seed = 18) {
   return texture;
 }
 
-export function createPipeline(renderer, scene, camera) {
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const room = new RoomEnvironment();
-  scene.environment = pmrem.fromScene(room, .06).texture;
-  scene.environmentIntensity = .16;
-  room.dispose(); pmrem.dispose();
+export function createPipeline(renderer, scene, camera, windowMaterial) {
+  const reflectionTarget = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
+  const reflectionCamera = new THREE.CubeCamera(.1, camera.far, reflectionTarget);
+  reflectionCamera.position.set(-.5, 1.35, -1.35);
+  const captureBackground = new THREE.Color('#252629');
+  let reflectionsDirty = true;
+  let reflectedWindowIntensity = 1;
   // The default canvas antialias flag does not antialias offscreen composer targets.
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: Math.min(4, renderer.capabilities.maxSamples) });
   const composer = new EffectComposer(renderer, target);
@@ -65,12 +65,39 @@ export function createPipeline(renderer, scene, camera) {
   composer.addPass(new SMAAPass());
   return {
     get guides(){return {normal:ao.normalRenderTarget.texture,depth:ao.normalRenderTarget.depthTexture,color:composer.readBuffer.texture};},
+    invalidateReflections(windowIntensity = reflectedWindowIntensity) {
+      reflectedWindowIntensity = windowIntensity;
+      reflectionsDirty = true;
+    },
     resize(w, h, ratio) { composer.setPixelRatio(ratio); composer.setSize(w, h); },
     render() {
-      // SSAO caches projection uniforms; keep them current for the FOV slider.
-      ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
-      ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
-      composer.render();
+      const { environment, environmentIntensity } = scene;
+      try {
+        if (reflectionsDirty) {
+          const background = scene.background;
+          const windowIntensity = windowMaterial.emissiveIntensity;
+          // Capture direct lighting once. Three.js filters the cubemap for each material's roughness.
+          scene.environment = null;
+          scene.background = captureBackground;
+          windowMaterial.emissiveIntensity = reflectedWindowIntensity;
+          try {
+            reflectionCamera.update(renderer, scene);
+            reflectionsDirty = false;
+          } finally {
+            scene.background = background;
+            windowMaterial.emissiveIntensity = windowIntensity;
+          }
+        }
+        scene.environment = reflectionTarget.texture;
+        scene.environmentIntensity = .75;
+        // SSAO caches projection uniforms; keep them current for the FOV slider.
+        ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
+        ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
+        composer.render();
+      } finally {
+        scene.environment = environment;
+        scene.environmentIntensity = environmentIntensity;
+      }
     },
   };
 }

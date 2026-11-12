@@ -25,7 +25,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status) {
       if (!renderer.extensions.has('EXT_color_buffer_float')) throw new Error('Floating point rendering is unavailable');
       const sky = new GradientEquirectTexture(128);
       sky.topColor.set('#dae6f2'); sky.bottomColor.set('#b7a58b'); sky.update();
-      // The raster preview used a prefiltered cubemap; the tracer needs an equirectangular source.
+      // Keep the tracer's equirectangular sky separate from the live room reflections.
       scene.environment = sky;
       tracer = new WebGLPathTracer(renderer);
       denoiser = createGuidedDenoiser(renderer,preview,camera);

@@ -1,7 +1,9 @@
 import { createGuidedDenoiser } from './denoise.js';
 import { EXPORT_SIZES, nextFrame, renderRealisticExport } from './realistic-export.js';
+import { createOidnPreview } from './realistic-preview.js';
 
 export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 };
+const OIDN_PREVIEW_SETTINGS = { samples: 8, scale: .55, bounces: 3 };
 
 export const EXPORT_PRESETS = {
   quick: { samples: 16, bounces: 4 },
@@ -13,7 +15,8 @@ const exportCancelled = Symbol('export cancelled');
 
 export function createPhotoreal(renderer, scene, camera, preview, status, exportStatus) {
   const gl = renderer.getContext();
-  let tracer, denoiser, library, starting;
+  let tracer, denoiser, oidnPreview, library, starting;
+  let webGpuUnavailable = false;
   let enabled = false, failed = false, exporting = false, cancelled = false;
   let pending = true, sceneChanged = true, changed = performance.now();
   let contextGeneration = 0;
@@ -37,7 +40,6 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
   }
 
   async function prepareScene(checkActive) {
-    library = await (library ?? import('three-gpu-pathtracer'));
     checkActive();
 
     // Wait for the active textures before building either tracer's texture atlas.
@@ -64,19 +66,42 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
   }
 
   function releaseTracer() {
+    oidnPreview?.dispose().catch(error => console.error('Realistic preview cleanup failed', error));
+    oidnPreview = null;
     denoiser?.dispose();
     tracer?.dispose();
     denoiser = tracer = null;
   }
 
   function start() {
-    if (tracer) return Promise.resolve();
+    if (tracer || oidnPreview) return Promise.resolve();
     if (starting) return starting;
     const generation = contextGeneration;
     starting = (async () => {
       report('Preparing realistic lighting…');
       try {
         await prepareScene(() => checkPreviewContext(generation));
+        checkPreviewContext(generation);
+        if (exporting) return;
+        if (navigator.gpu && !webGpuUnavailable) {
+          try {
+            const candidate = await createOidnPreview(renderer.domElement, scene, camera, OIDN_PREVIEW_SETTINGS, report);
+            if (generation !== contextGeneration || gl.isContextLost() || exporting) {
+              await candidate.dispose();
+              checkPreviewContext(generation);
+              return;
+            }
+            oidnPreview = candidate;
+            pending = sceneChanged = true;
+            return;
+          } catch (error) {
+            checkPreviewContext(generation);
+            if (exporting) return;
+            webGpuUnavailable = true;
+            console.warn('WebGPU preview unavailable, using WebGL', error);
+          }
+        }
+        library = await (library ?? import('three-gpu-pathtracer'));
         checkPreviewContext(generation);
         if (exporting) return;
         if (!renderer.extensions.has('EXT_color_buffer_float')) {
@@ -140,6 +165,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
     pending = true;
     sceneChanged = true;
     failed = false;
+    webGpuUnavailable = false;
     changed = performance.now();
     report(enabled ? 'Preparing realistic lighting…' : 'Fast preview');
   });
@@ -153,9 +179,12 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
       failed = false;
       changed = performance.now();
       pending = true;
+      if (!value) oidnPreview?.hide();
       if (!value && !gl.isContextLost()) report('Fast preview');
     },
     invalidate(kind = 'scene') {
+      oidnPreview?.hide();
+      if (enabled && oidnPreview && !exporting) report('Updating realistic preview…');
       pending = true;
       sceneChanged ||= kind !== 'camera';
       changed = performance.now();
@@ -163,11 +192,19 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
     frame() {
       if (!enabled || failed || exporting || gl.isContextLost() || performance.now() - changed < 200) return;
       const generation = contextGeneration;
-      if (!tracer) {
+      if (!tracer && !oidnPreview) {
         if (!starting) start().catch(error => previewFailed(error, generation));
         return;
       }
       try {
+        if (oidnPreview) {
+          if (pending) {
+            oidnPreview.sync(sceneChanged);
+            pending = sceneChanged = false;
+          }
+          oidnPreview.frame();
+          return;
+        }
         if (pending) {
           configurePreview();
           sync();
@@ -176,7 +213,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
         tracer.renderSample();
         if (tracer.samples >= PREVIEW_SETTINGS.samples) {
           denoiser.render(tracer.target.texture, tracer.target.width, tracer.target.height);
-          report('Quick realistic preview ready · export adds detail');
+          report('WebGL realistic preview ready · export adds detail');
         } else {
           report(tracer.isCompiling ? 'Preparing realistic lighting…' : `Refining light · ${Math.floor(tracer.samples)} / ${PREVIEW_SETTINGS.samples}`);
         }
@@ -189,6 +226,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
       exporting = true;
       cancelled = false;
       try {
+        oidnPreview?.pause();
         reportExport('Preparing export…');
         await prepareScene(checkCancelled);
         checkCancelled();

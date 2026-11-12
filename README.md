@@ -13,7 +13,7 @@ The export is a still image; it does not create a virtual webcam or remove your 
 
 ## Realistic lighting
 
-The optional Realistic lighting mode uses `three-gpu-pathtracer` with eight samples, three light bounces, and 45% of the viewport resolution in each dimension. Each sample renders in four tiles, followed by depth-, normal-, and preview-color-guided filtering and upscaling once the samples finish. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause. Camera-only changes skip material and environment uploads. Fast preview is selected initially.
+The optional Realistic lighting mode traces eight samples with three light bounces at 55% of the viewport resolution in each dimension on WebGPU. It displays the image after Open Image Denoise finishes, using the same denoiser and weights as realistic export. If WebGPU cannot initialize, the preview uses WebGL at 45% resolution with guided filtering. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause. Camera-only changes skip material and environment uploads. Fast preview is selected initially.
 
 Realistic export requires a WebGPU-capable browser on localhost or HTTPS. It traces at the selected resolution and runs Open Image Denoise with albedo and normals accumulated by the tracer. Quick uses 16 samples and four bounces, Detailed uses 96 samples and four bounces, and Maximum uses 256 samples and six bounces. The previous preview stays visible during export. You can cancel while rendering or denoising. Fast export uses WebGL.
 

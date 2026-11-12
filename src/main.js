@@ -82,7 +82,19 @@ function cylinder(rt,rb,h,m,x,y,z){const o=new THREE.Mesh(new THREE.CylinderGeom
 box(7.3,3.95,.18,wall,.4,1.975,-3);
 const ceiling = mat('#ffffff', .91);
 applySurfaceTexture(ceiling, textureLoader, '/assets/board-formed-concrete.jpg', wood.map.anisotropy, .55);
-box(7.3,.12,6,ceiling,.4,4.01,0);
+// Keep a solid roof above the narrow joints between the four visible slabs.
+box(7.3, .08, 6, ceiling, .4, 4.03, 0);
+const slabWidth = 6.72 / 4;
+// Sample within the photographed boards so the only seams are the slab joints.
+for (const [index, grainStart] of [.03, .36, .69, .07].entries()) {
+  const x = -3.16 + (index + .5) * slabWidth;
+  const slab = box(slabWidth - .006, .04, 6, ceiling, x, 3.97, 0);
+  const uv = slab.geometry.attributes.uv;
+  for (let i = 0; i < uv.count; i++) {
+    const across = uv.getX(i), along = uv.getY(i);
+    uv.setXY(i, index % 2 ? 1 - along : along, grainStart + across * .24);
+  }
+}
 box(.18,3.95,6,wall,3.65,1.975,0);
 // A frosted clerestory fills the top tenth of the wall behind the camera.
 const rearWallZ = 3.08;

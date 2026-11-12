@@ -6,45 +6,55 @@ export const EXPORT_SIZES = {
 
 export const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 
-export async function renderRealisticExport(scene, camera, settings, { width, height }, checkCancelled, report) {
+export async function createOidnRenderer(canvas, settings, onFailure, checkCancelled = () => {}) {
   if (!navigator.gpu) {
-    throw new Error('Realistic export requires WebGPU. Open Roomlight on localhost or HTTPS in a browser with WebGPU enabled.');
+    throw new Error('Realistic lighting requires WebGPU. Open Roomlight on localhost or HTTPS in a browser with WebGPU enabled.');
   }
 
   const [{ WebGPURenderer, ACESFilmicToneMapping }, { WebGPUPathTracer, OIDNDenoiser }, { initUNetFromURL }] =
     await Promise.all([import('three/webgpu'), import('three-gpu-pathtracer/webgpu'), import('oidn-webgpu')]);
   checkCancelled();
 
-  // Keep the WebGL preview canvas and its render targets at viewport size.
-  const canvas = document.createElement('canvas');
   const renderer = new WebGPURenderer({ canvas, alpha: false, antialias: false, trackTimestamp: true });
-  let tracer, denoiser, initialized = false, failure;
+  let tracer, denoiser, initialized = false, disposed = false, failure;
   const onDeviceLost = renderer.onDeviceLost.bind(renderer);
   const onError = renderer.onError.bind(renderer);
+  const fail = error => {
+    if (disposed || failure) return;
+    failure = error;
+    onFailure(error);
+  };
   renderer.onDeviceLost = info => {
-    failure = new Error('The WebGPU device was lost. Try the export again at a lower resolution.');
+    if (disposed) return;
+    fail(new Error('The WebGPU device was lost.'));
     onDeviceLost(info);
   };
   renderer.onError = info => {
-    failure ??= new Error(`WebGPU export failed: ${info.message || info.type}`);
+    if (disposed) return;
+    fail(new Error(`WebGPU rendering failed: ${info.message || info.type}`));
     onError(info);
   };
 
-  function checkActive() {
-    checkCancelled();
-    if (failure) throw failure;
+  async function dispose() {
+    if (disposed) return;
+    disposed = true;
+    try {
+      tracer?.dispose();
+      denoiser?.dispose();
+    } finally {
+      if (initialized) await renderer.dispose();
+    }
   }
 
   try {
-    report('Starting WebGPU…');
     await renderer.init();
     initialized = true;
-    checkActive();
+    checkCancelled();
+    if (failure) throw failure;
     if (!renderer.backend.isWebGPUBackend) {
-      throw new Error('The browser could not start WebGPU on this GPU. Select Fast preview to export with WebGL.');
+      throw new Error('The browser could not start WebGPU on this GPU.');
     }
     renderer.setPixelRatio(1);
-    renderer.setSize(width, height, false);
     renderer.toneMapping = ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
 
@@ -65,11 +75,30 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
       maxTileSize: 256,
     });
     denoiser.addEventListener('error', ({ error }) => {
-      failure ??= new Error(`Open Image Denoise failed: ${error.message || error}`);
+      fail(new Error(`Open Image Denoise failed: ${error.message || error}`));
     });
     tracer.setDenoiser(denoiser);
     denoiser = null; // The tracer owns the attached denoiser.
+    return { renderer, tracer, dispose };
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
+}
 
+export async function renderRealisticExport(scene, camera, settings, { width, height }, checkCancelled, report) {
+  const canvas = document.createElement('canvas');
+  let pipeline, failure;
+  function checkActive() {
+    checkCancelled();
+    if (failure) throw failure;
+  }
+  try {
+    report('Starting WebGPU…');
+    pipeline = await createOidnRenderer(canvas, settings, error => { failure = error; }, checkCancelled);
+    checkActive();
+    const { renderer, tracer } = pipeline;
+    renderer.setSize(width, height, false);
     let lastProgressAt = performance.now();
     let lastProgress;
     tracer.addEventListener('progress', ({ stage, progress, samples }) => {
@@ -112,11 +141,6 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
       await nextFrame();
     }
   } finally {
-    try {
-      tracer?.dispose();
-      denoiser?.dispose();
-    } finally {
-      if (initialized) await renderer.dispose();
-    }
+    await pipeline?.dispose();
   }
 }

@@ -1,144 +1,226 @@
-import * as THREE from 'three';
 import { createGuidedDenoiser } from './denoise.js';
+import { EXPORT_SIZES, nextFrame, renderRealisticExport } from './realistic-export.js';
 
-// Relative to 128 samples × full CSS resolution × 6 bounces:
-// 16 × .55² × 3 is ~53× less nominal tracing work (not a timing guarantee).
 export const PREVIEW_SETTINGS = { samples: 16, scale: .55, bounces: 3, tiles: 1 };
 
 export const EXPORT_PRESETS = {
-  quick: { samples: 48, scale: 2 / 3, bounces: 4, tiles: 2 },
-  detailed: { samples: 48, scale: 1, bounces: 4, tiles: 2, filter: { passes: 3, preserveEdges: true } },
-  maximum: { samples: 256, scale: 1, bounces: 6, tiles: 3, filter: { passes: 0 } },
+  quick: { samples: 16, bounces: 4 },
+  detailed: { samples: 96, bounces: 4 },
+  maximum: { samples: 256, bounces: 6 },
 };
 
-// Loaded on demand so the interactive renderer is available immediately.
-export function createPhotoreal(renderer, scene, camera, preview, status) {
-  let tracer, denoiser, starting, ready = false, enabled = false, failed = false, changed = performance.now();
-  let pending = true, sceneChanged = true, exporting = false, cancelled = false;
-  const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
-  const report = text => { status.textContent = text; };
-  async function start() {
+const exportCancelled = Symbol('export cancelled');
+
+export function createPhotoreal(renderer, scene, camera, preview, status, exportStatus) {
+  const gl = renderer.getContext();
+  let tracer, denoiser, library, sky, starting;
+  let enabled = false, failed = false, exporting = false, cancelled = false;
+  let pending = true, sceneChanged = true, changed = performance.now();
+  let contextGeneration = 0;
+
+  function report(text) {
+    if (status.textContent !== text) status.textContent = text;
+  }
+
+  function reportExport(text) {
+    if (exportStatus.textContent !== text) exportStatus.textContent = text;
+  }
+
+  function checkPreviewContext(generation) {
+    if (generation !== contextGeneration || gl.isContextLost()) {
+      throw new Error('The WebGL preview context was lost.');
+    }
+  }
+
+  function checkCancelled() {
+    if (cancelled) throw exportCancelled;
+  }
+
+  async function prepareScene(checkActive) {
+    library = await (library ?? import('three-gpu-pathtracer'));
+    checkActive();
+
+    // Wait for the active textures before building either tracer's texture atlas.
+    const maps = new Set();
+    scene.traverse(object => {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (!material) continue;
+        for (const value of Object.values(material)) {
+          if (value?.isTexture) maps.add(value);
+        }
+      }
+    });
+    const textures = [...maps];
+    const deadline = performance.now() + 15000;
+    while (textures.some(texture => !texture.image || texture.image.complete === false)) {
+      if (performance.now() > deadline) throw new Error('Scene textures did not finish loading.');
+      await nextFrame();
+      checkActive();
+    }
+    if (textures.some(({ image }) => image.naturalWidth === 0)) {
+      throw new Error('A scene texture failed to load.');
+    }
+
+    if (!sky) {
+      sky = new library.GradientEquirectTexture(128);
+      sky.topColor.set('#dae6f2');
+      sky.bottomColor.set('#b7a58b');
+      sky.update();
+    }
+    scene.environment = sky;
+  }
+
+  function releaseTracer() {
+    denoiser?.dispose();
+    tracer?.dispose();
+    denoiser = tracer = null;
+  }
+
+  function start() {
+    if (tracer) return Promise.resolve();
     if (starting) return starting;
+    const generation = contextGeneration;
     starting = (async () => {
       report('Preparing realistic lighting…');
-      const { WebGLPathTracer, GradientEquirectTexture } = await import('three-gpu-pathtracer');
-      if (!renderer.extensions.has('EXT_color_buffer_float')) throw new Error('Floating point rendering is unavailable');
-      const sky = new GradientEquirectTexture(128);
-      sky.topColor.set('#dae6f2'); sky.bottomColor.set('#b7a58b'); sky.update();
-      // Keep the tracer's equirectangular sky separate from the live room reflections.
-      scene.environment = sky;
-      tracer = new WebGLPathTracer(renderer);
-      denoiser = createGuidedDenoiser(renderer,preview,camera);
-      tracer.filterGlossyFactor = .5;
-      tracer.textureSize.set(1024, 1024);
-      configurePreview();
-      // Texture loading is asynchronous; don't build an atlas from empty images.
-      const maps = new Set();
-      scene.traverse(object => {
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        for (const material of materials) if (material) {
-          for (const value of Object.values(material)) if (value?.isTexture) maps.add(value);
+      try {
+        await prepareScene(() => checkPreviewContext(generation));
+        checkPreviewContext(generation);
+        if (exporting) return;
+        if (!renderer.extensions.has('EXT_color_buffer_float')) {
+          throw new Error('This GPU does not support the floating point buffers required for the realistic preview.');
         }
-      });
-      const deadline = performance.now() + 15000;
-      while ([...maps].some(texture => !texture.image || texture.image.complete === false)) {
-        if (performance.now() > deadline) throw new Error('Scene textures did not finish loading');
-        await nextFrame();
+        tracer = new library.WebGLPathTracer(renderer);
+        tracer.renderToCanvas = false;
+        tracer.renderDelay = 0;
+        tracer.filterGlossyFactor = .5;
+        tracer.setScene(scene, camera);
+        checkPreviewContext(generation);
+        denoiser = createGuidedDenoiser(renderer, preview, camera);
+        pending = true;
+        sceneChanged = false;
+      } catch (error) {
+        if (generation === contextGeneration) releaseTracer();
+        throw error;
+      } finally {
+        if (generation === contextGeneration) starting = null;
       }
-      await nextFrame();
-      tracer.setScene(scene, camera);
-      ready = true;
-      pending = true;
-    })().catch(error => {
-      console.error('Realistic rendering unavailable', error);
-      failed = true; tracer?.dispose(); tracer = null;
-      report('Realistic rendering unavailable — using fast preview');
-      preview.render();
-    });
+    })();
     return starting;
   }
+
   function configurePreview() {
     tracer.bounces = PREVIEW_SETTINGS.bounces;
+    tracer.filterGlossyFactor = .5;
     tracer.tiles.set(PREVIEW_SETTINGS.tiles, PREVIEW_SETTINGS.tiles);
     tracer.renderScale = PREVIEW_SETTINGS.scale / renderer.getPixelRatio();
-    // Keep the clean interactive image visible until the filtered result is ready.
-    tracer.renderToCanvas = false;
-    tracer.renderDelay = 0;
   }
-  function sync(forceScene = false) {
+
+  function sync() {
     scene.updateMatrixWorld(true);
-    tracer.updateCamera();
-    // Camera moves must not rebuild the texture atlas or upload all scene materials.
-    if (sceneChanged || forceScene) {
-      tracer.updateMaterials(); tracer.updateLights(); tracer.updateEnvironment();
+    tracer.setCamera(camera);
+    if (sceneChanged) {
+      tracer.updateMaterials();
+      tracer.updateLights();
+      tracer.updateEnvironment();
       sceneChanged = false;
     }
     pending = false;
   }
+
+  function previewFailed(error, generation) {
+    if (error === exportCancelled || generation !== contextGeneration || gl.isContextLost()) return;
+    console.error('Realistic preview failed', error);
+    failed = true;
+    releaseTracer();
+    if (enabled) report('Realistic preview unavailable');
+  }
+
+  renderer.domElement.addEventListener('webglcontextlost', event => {
+    event.preventDefault();
+    contextGeneration++;
+    starting = null;
+    releaseTracer();
+    report('Graphics context lost. Waiting for the browser to restore it…');
+  });
+
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    pending = true;
+    sceneChanged = true;
+    failed = false;
+    changed = performance.now();
+    report(enabled ? 'Preparing realistic lighting…' : 'Fast preview');
+  });
+
   return {
     get exporting() { return exporting; },
-    get enabled() { return enabled && !failed; },
+    get enabled() { return enabled; },
     cancel() { cancelled = true; },
     setEnabled(value) {
-      enabled = value; changed = performance.now(); pending = true;
-      if (!value) { preview.render(); report('Fast preview'); }
+      enabled = value;
+      failed = false;
+      changed = performance.now();
+      pending = true;
+      if (!value && !gl.isContextLost()) report('Fast preview');
     },
-    invalidate(kind = 'scene') { pending = true; sceneChanged ||= kind !== 'camera'; changed = performance.now(); },
+    invalidate(kind = 'scene') {
+      pending = true;
+      sceneChanged ||= kind !== 'camera';
+      changed = performance.now();
+    },
     frame() {
-      if (!enabled || failed || exporting) return;
-      if (performance.now() - changed < 200) return;
-      if (!ready) { start(); return; }
+      if (!enabled || failed || exporting || gl.isContextLost() || performance.now() - changed < 200) return;
+      const generation = contextGeneration;
+      if (!tracer) {
+        if (!starting) start().catch(error => previewFailed(error, generation));
+        return;
+      }
       try {
-        if (pending) { configurePreview(); sync(); }
-        if (tracer.samples < PREVIEW_SETTINGS.samples) {
-          tracer.renderSample();
-          if (tracer.samples >= PREVIEW_SETTINGS.samples) {
-            denoiser.render(tracer.target.texture,tracer.target.width,tracer.target.height);
-            report('Quick realistic preview ready · export adds detail');
-          } else report(tracer.isCompiling ? 'Preparing realistic lighting…' : `Refining light · ${Math.floor(tracer.samples)} / ${PREVIEW_SETTINGS.samples}`);
+        if (pending) {
+          configurePreview();
+          sync();
         }
-      } catch(error) {
-        console.error(error); failed = true; preview.render(); report('Realistic rendering unavailable — using fast preview');
+        if (tracer.samples >= PREVIEW_SETTINGS.samples) return;
+        tracer.renderSample();
+        if (tracer.samples >= PREVIEW_SETTINGS.samples) {
+          denoiser.render(tracer.target.texture, tracer.target.width, tracer.target.height);
+          report('Quick realistic preview ready · export adds detail');
+        } else {
+          report(tracer.isCompiling ? 'Preparing realistic lighting…' : `Refining light · ${Math.floor(tracer.samples)} / ${PREVIEW_SETTINGS.samples}`);
+        }
+      } catch (error) {
+        previewFailed(error, generation);
       }
     },
-    async exportImage(preset = 'quick') {
+    async exportImage(preset, resolution) {
       if (exporting) return;
-      const settings = EXPORT_PRESETS[preset] || EXPORT_PRESETS.quick;
-      cancelled = false;
-      await start();
-      if (!tracer || failed) throw new Error('Realistic rendering is unavailable. Select Fast preview to export.');
-      if (cancelled) { report('Export cancelled'); return; }
       exporting = true;
-      const ratio = renderer.getPixelRatio(), size = renderer.getSize(new THREE.Vector2());
-      const aspect = camera.aspect;
-      const startedAt = performance.now();
+      cancelled = false;
       try {
-        renderer.setPixelRatio(1); renderer.setSize(1920,1080,false);
-        camera.aspect = 16 / 9; camera.updateProjectionMatrix();
-        preview.resize(1920,1080,1);
-        preview.render();
-        tracer.renderScale = settings.scale; tracer.bounces = settings.bounces;
-        tracer.tiles.set(settings.tiles, settings.tiles);
-        // Accumulate offscreen so every tile doesn't copy the entire image to the canvas.
-        sync(true);
-        // Yield between tiles so progress and Cancel stay responsive.
-        while (tracer.samples < settings.samples) {
-          if (cancelled) return;
-          if (renderer.getContext().isContextLost()) throw new Error('Graphics context lost. Reload the page to render again.');
-          tracer.renderSample();
-          report(`Rendering export · ${Math.floor(tracer.samples / settings.samples * 100)}% · ${Math.round((performance.now() - startedAt) / 1000)}s`);
-          await nextFrame();
-        }
-        denoiser.render(tracer.target.texture,tracer.target.width,tracer.target.height,settings.filter);
-        const link = document.createElement('a'); link.download = 'roomlight-realistic.png';
-        link.href = renderer.domElement.toDataURL('image/png'); link.click();
+        reportExport('Preparing export…');
+        await prepareScene(checkCancelled);
+        checkCancelled();
+        const settings = EXPORT_PRESETS[preset] ?? EXPORT_PRESETS.quick;
+        const dimensions = EXPORT_SIZES[resolution] ?? EXPORT_SIZES['1080'];
+        const exportCamera = camera.clone();
+        exportCamera.aspect = dimensions.width / dimensions.height;
+        exportCamera.updateProjectionMatrix();
+        const png = await renderRealisticExport(scene, exportCamera, settings, dimensions, checkCancelled, reportExport);
+        checkCancelled();
+        const url = URL.createObjectURL(png);
+        const link = document.createElement('a');
+        link.download = 'roomlight-realistic.png';
+        link.href = url;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+        reportExport('Download started');
+      } catch (error) {
+        if (error !== exportCancelled) throw error;
+        reportExport('Export cancelled');
       } finally {
         exporting = false;
-        renderer.setPixelRatio(ratio); renderer.setSize(size.x,size.y,false);
-        camera.aspect = aspect; camera.updateProjectionMatrix(); preview.resize(size.x,size.y,ratio);
-        configurePreview();
-        pending = true; changed = performance.now(); preview.render();
-        report(cancelled ? 'Export cancelled' : 'Refining light…');
+        pending = true;
+        changed = performance.now();
       }
     },
   };

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { createNormalTexture } from './surface-normals.js';
 
 const paperCanvas = document.createElement('canvas');
 paperCanvas.width = 64; paperCanvas.height = 512;
@@ -120,13 +121,10 @@ export function readingChair(scene, wood) {
   const laminateMap=new THREE.CanvasTexture(laminateCanvas); laminateMap.colorSpace=THREE.SRGBColorSpace;
   laminateMap.wrapS=laminateMap.wrapT=THREE.RepeatWrapping; laminateMap.repeat.set(1,12);
   const laminate=new THREE.MeshStandardMaterial({map:laminateMap,roughness:.72});
-  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
-  const ctx = canvas.getContext('2d'); ctx.fillStyle = '#bdbbb5'; ctx.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 256; i += 2) {
-    ctx.strokeStyle = i % 4 ? 'rgba(255,255,255,.045)' : 'rgba(55,50,45,.055)';
-    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 256); ctx.moveTo(0, i); ctx.lineTo(256, i); ctx.stroke();
-  }
-  const weave = new THREE.CanvasTexture(canvas); weave.wrapS = weave.wrapT = THREE.RepeatWrapping; weave.repeat.set(3, 4);
+  const weave = createNormalTexture(128, 128, (x, y) =>
+    .25 * (Math.cos(x * Math.PI / 4) + Math.cos(y * Math.PI / 4)) +
+    .125 * Math.cos((x + y) * Math.PI / 8), .22);
+  weave.repeat.set(3, 4);
   const clothCanvas=document.createElement('canvas'); clothCanvas.width=256; clothCanvas.height=1024;
   const clothCtx=clothCanvas.getContext('2d'), clothPixels=clothCtx.createImageData(256,1024);
   for(let y=0;y<1024;y++) for(let x=0;x<256;x++) {
@@ -144,9 +142,9 @@ export function readingChair(scene, wood) {
   for(let i=0;i<=5;i++) stitch(.035+i*.045,.12);
   const clothMap=new THREE.CanvasTexture(clothCanvas); clothMap.colorSpace=THREE.SRGBColorSpace;
   clothMap.wrapS=clothMap.wrapT=THREE.RepeatWrapping;
-  const fabric = new THREE.MeshPhysicalMaterial({ color: '#999894', map:clothMap, roughness: 1, sheen: .18, sheenColor: '#c1bfb9', sheenRoughness: 1, bumpMap: weave, bumpScale: .0008, side: THREE.DoubleSide });
+  const fabric = new THREE.MeshPhysicalMaterial({ color: '#999894', map:clothMap, roughness: 1, sheen: .18, sheenColor: '#c1bfb9', sheenRoughness: 1, normalMap: weave, side: THREE.DoubleSide });
   // Avoid stretching a single row of the surface texture around the rolled edges.
-  const edgeFabric=fabric.clone(); edgeFabric.map=null; edgeFabric.bumpMap=null;
+  const edgeFabric=fabric.clone(); edgeFabric.map=null; edgeFabric.normalMap=null;
   // The photographed chair has a lighter woven backing on the reverse.
   const backing = fabric.clone(); backing.color.set('#c8c6bf'); backing.map=null; backing.sheen = .25;
   const metal = new THREE.MeshStandardMaterial({ color: '#b9bab5', metalness: .35, roughness: .48 });

@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import './style.css';
 import { createPhotoreal } from './photoreal.js';
+import { EXPORT_SIZES } from './realistic-export.js';
 import { book, deskDetails, readingChair } from './details.js';
-import { addPlant, addRelief, createPipeline, surfaceNoise, oakTexture } from './realism.js';
+import { addAshFloor, addPlant, addRelief, applySurfaceTexture, createPipeline, plasterNormalMap, oakNormalMap, oakTexture } from './realism.js';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 RectAreaLightUniformsLib.init();
 
@@ -21,8 +22,30 @@ document.querySelector('.light-list').insertAdjacentHTML('afterbegin', `
   </label>`);
 const ceilingControl = document.querySelector('#ceiling-light');
 
-const quality = document.createElement('div');quality.className='render-quality';
-quality.innerHTML='<div role="group" aria-label="Render quality"><button id="quality-fast" aria-pressed="true">Fast preview</button><button id="quality-real" aria-pressed="false">Realistic lighting</button></div><label class="export-quality">Export quality <select id="export-quality"><option value="quick">Quick · recommended</option><option value="detailed">Detailed</option><option value="maximum">Maximum · slow</option></select></label><span id="render-status" role="status">Fast preview</span><button id="cancel-render" hidden>Cancel export</button>';
+const quality = document.createElement('div');
+quality.className = 'render-quality';
+quality.innerHTML = `
+  <div role="group" aria-label="Render quality">
+    <button id="quality-fast" aria-pressed="true">Fast preview</button>
+    <button id="quality-real" aria-pressed="false">Realistic lighting</button>
+  </div>
+  <label class="export-quality">Export quality
+    <select id="export-quality">
+      <option value="quick">Quick · recommended</option>
+      <option value="detailed">Detailed</option>
+      <option value="maximum">Maximum · slow</option>
+    </select>
+  </label>
+  <label class="export-quality">Export resolution
+    <select id="export-resolution">
+      <option value="1080">1080p</option>
+      <option value="720">720p</option>
+      <option value="480">480p</option>
+    </select>
+  </label>
+  <span id="render-status" role="status">Fast preview</span>
+  <span id="export-status" role="status"></span>
+  <button id="cancel-render" hidden>Cancel export</button>`;
 document.querySelector('.preview-wrap').after(quality);
 const viewport = document.querySelector('#viewport');
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -32,24 +55,29 @@ const camera = new THREE.PerspectiveCamera(43, 16 / 9, .1, 30);
 const mat = (color, roughness=1, metalness=0) => new THREE.MeshStandardMaterial({color, roughness, metalness});
 const textureLoader = new THREE.TextureLoader();
 function loadSurface(url, repeat=2){const t=textureLoader.load(url);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(repeat,repeat);t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;}
-const wall=mat('#ffffff'), wood=mat('#ffffff'), dark=mat('#34322c'), cream=mat('#e0d1ba'), green=mat('#53663b'), gold=mat('#ac8657',.5,.4);wall.color.set('#e1d7c9');wall.bumpMap=surfaceNoise();wall.bumpScale=.002;wood.map=oakTexture();wood.map.anisotropy=renderer.capabilities.getMaxAnisotropy();wood.color.set('#ffffff');wood.roughness=.42;wood.bumpMap=wood.map;wood.bumpScale=.0015;
+const wall = mat('#e1d7c9'), wood = mat('#ffffff', .42);
+const dark = mat('#34322c'), cream = mat('#e0d1ba'), green = mat('#53663b'), gold = mat('#ac8657', .5, .4);
+wall.normalMap = plasterNormalMap();
+wood.map = oakTexture();
+wood.normalMap = oakNormalMap(wood.map);
+wood.map.anisotropy = wood.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
 function box(w,h,d,m,x,y,z, shadow=true){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=shadow;o.receiveShadow=true;scene.add(o);return o;}
 function roundedBox(w,h,d,r,m,x,y,z){const mesh=new THREE.Mesh(new RoundedBoxGeometry(w,h,d,5,r),m);if(m===wood){const p=mesh.geometry.attributes.position,uv=mesh.geometry.attributes.uv;for(let i=0;i<p.count;i++){const along=w>h&&w>d?p.getX(i):h>d?p.getY(i):p.getZ(i);const across=w>h&&w>d?p.getZ(i):p.getX(i);uv.setXY(i,across*3,along*.65);}uv.needsUpdate=true;}mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);return mesh;}
 function sphere(r,m,x,y,z){const o=new THREE.Mesh(new THREE.SphereGeometry(r,32,24),m);o.position.set(x,y,z);o.castShadow=true;scene.add(o);return o;}
 function cylinder(rt,rb,h,m,x,y,z){const o=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,48),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o;}
 // A complete back wall meets a left wall with a deep, side-facing window opening.
 box(7.3,3.95,.18,wall,.4,1.975,-3);
-box(7.3,.12,6,mat('#eee8df'),.4,4.01,0);
+const ceiling = mat('#ffffff', .91);
+applySurfaceTexture(ceiling, textureLoader, '/assets/board-formed-concrete.jpg', wood.map.anisotropy, .55);
+box(7.3,.12,6,ceiling,.4,4.01,0);
 box(.18,3.95,6,wall,3.65,1.975,0);
 box(.18,3.95,.5,wall,-3.25,1.975,-2.75);
 box(.18,3.95,3.3,wall,-3.25,1.975,1.35);
 box(.18,.72,2.2,wall,-3.25,.36,-1.4);
 box(.18,.90,2.2,wall,-3.25,3.50,-1.4);
-// Narrow oak planks with staggered joints, bevel-like gaps and varying grain.
 // A solid backing keeps the recessed joints from exposing the environment below the room.
-box(7.3,.09,6.18,mat('#967955',.76),.4,-.0665,0);
-const floorColors=['#e3d7c4','#e8dccb','#dfd3c0','#e6d9c7','#e1d4bf']; const floorMaterials=floorColors.map((color,i)=>{const m=mat(color,.44);m.map=oakTexture(40+i*17);m.map.anisotropy=renderer.capabilities.getMaxAnisotropy();m.bumpMap=m.map;m.bumpScale=.001;return m;});
-for(let row=0;row<25;row++){const x=-3.24+row*.285;let z=-3;let segment=row%2?.72:1.42;let part=0;while(z<3){let len=Math.min(segment,3-z);box(.283,.065,len-.002,floorMaterials[(row*7+part*3)%floorMaterials.length],x,-.05,z+len/2,false);z+=len;segment=1.42;part++;}}
+box(7.3,.09,6.18,mat('#9e9990',.76),.4,-.0665,0);
+addAshFloor(scene, textureLoader, wood.map.anisotropy);
 box(7.3,.14,.09,cream,.4,.05,-2.87);box(.09,.14,5.9,cream,-3.12,.05,0);
 // Layered oak window lining, dark gasket, inset sash and slender glazing beads.
 const frameDark=mat('#57483c',.85), sashWood=wood.clone(), hardware=mat('#4b4b46',.32,.72);
@@ -79,8 +107,10 @@ roundedBox(.025,.17,.055,.009,hardware,-3.11,1.65,-1.45);roundedBox(.045,.19,.02
 // A short horizontal grip, spindle and mounting screws complete the handle.
 roundedBox(.065,.025,.115,.01,hardware,-3.055,1.80,-1.405);
 for(const y of [1.59,1.71]){const screw=sphere(.006,hardware,-3.091,y,-1.45);screw.scale.x=.4;}
-// A background beyond the side window; room, opening and camera remain 3D.
-const backdropMat = new THREE.MeshStandardMaterial({color:'#000000',emissive:'#ffffff',emissiveIntensity:1,roughness:1}); const backdrop=box(7,4,.03,backdropMat,-4.2,2,-1.4,false); backdrop.rotation.y=Math.PI/2;
+// Place the exterior farther from the window, with enough coverage for the camera sliders.
+const backdropMat = new THREE.MeshStandardMaterial({color:'#000000',emissive:'#ffffff',emissiveIntensity:1,roughness:1});
+const backdrop = box(8.2,4.7,.03,backdropMat,-5.85,2.10,-3.24,false);
+backdrop.rotation.y = Math.PI / 2;
 const outsideImages = Object.fromEntries(['city','forest','mountains'].map(name=>{const texture=textureLoader.load('/assets/'+name+'.png');texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=renderer.capabilities.getMaxAnisotropy();return [name,texture];}));
 let view='city', mood='day'; function updateBackdrop(reflectedWindowIntensity){backdropMat.emissiveMap=outsideImages[view];backdropMat.emissive.set(mood==='night'?'#424c6a':mood==='golden'?'#ffd5ad':'#ffffff');backdropMat.needsUpdate=true;pipeline.invalidateReflections(reflectedWindowIntensity);}
 // Shelving, books, and planters
@@ -164,27 +194,90 @@ function updateLights(){
  windowFill.color.set(isNight?'#a8bcf1':mood==='golden'?'#ffe2bd':'#eef4ff');
  windowFill.intensity=outside?(isNight?.08:mood==='golden'?3.5:4.3):0;ambient.intensity=isNight?.06:outside?.20:.10;scene.environmentIntensity=isNight?.025:.13;
  deskLight.intensity=deskOn?14:0;shelfLight.intensity=shelfOn?5:0;shelfWash.intensity=shelfOn?8:0;fill.intensity=document.querySelector('#fill').checked?(isNight?.12:.8):0;
+ // The tracer picks from visible lights uniformly. Disabled lights would waste samples.
+ for (const light of [ceilingLight, sun, windowFill, deskLight, shelfLight, shelfWash, fill]) {
+  light.visible = light.intensity > 0;
+ }
  bulb.material.color.set(deskOn?'#ffe0ad':'#77716b');globe.material.color.set(shelfOn?'#ffe1b0':'#8b8174');bulb.material.emissiveIntensity=deskOn?1.5:0;globe.material.emissiveIntensity=shelfOn?1.5:0;renderer.shadowMap.needsUpdate=true;
  updateBackdrop(outside?(isNight?1.2:mood==='golden'?3.5:4.5):0);
 }
 renderer.shadowMap.autoUpdate=false;
 const pipeline=createPipeline(renderer,scene,camera,backdropMat);
-const photoreal=createPhotoreal(renderer,scene,camera,pipeline,document.querySelector('#render-status'));
+const renderStatus = document.querySelector('#render-status');
+const exportStatus = document.querySelector('#export-status');
+const photoreal = createPhotoreal(renderer, scene, camera, pipeline, renderStatus, exportStatus);
 function updateCamera(){const x=Number(document.querySelector('#horizontal').value), y=Number(document.querySelector('#height').value), tilt=Number(document.querySelector('#tilt').value); camera.position.set(.3+x*.5,1.65+y,2.55);camera.fov=Number(document.querySelector('#zoom').value);camera.lookAt(-.55+x*.35,1.7+y+tilt*2,-2.8);camera.updateProjectionMatrix();}
-function resize(){if(photoreal.exporting)return;const w=viewport.clientWidth,h=viewport.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();pipeline.resize(w,h,renderer.getPixelRatio());}new ResizeObserver(resize).observe(viewport);
+function resize() {
+  if (photoreal.exporting) return;
+  const width = viewport.clientWidth;
+  const height = viewport.clientHeight;
+  if (!width || !height) return;
+  const size = renderer.getSize(new THREE.Vector2());
+  if (size.x !== width || size.y !== height) renderer.setSize(width, height, false);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
+  pipeline.resize(width, height, renderer.getPixelRatio());
+}
+new ResizeObserver(resize).observe(viewport);
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x===b));updateBackdrop();}));document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{mood=b.dataset.preset;document.querySelectorAll('[data-preset]').forEach(x=>x.classList.toggle('active',x===b));updateLights();}));document.querySelectorAll('.light-list input').forEach(x=>x.addEventListener('change',updateLights));document.querySelectorAll('.camera input').forEach(x=>x.addEventListener('input',updateCamera));document.querySelector('#reset').onclick=()=>{document.querySelector('#horizontal').value=0;document.querySelector('#height').value=0;document.querySelector('#tilt').value=0;document.querySelector('#zoom').value=48;updateCamera();};
 document.querySelector('#guide').addEventListener('change', e=>document.querySelector('#person-guide').classList.toggle('hidden',!e.target.checked));
-document.querySelector('#export').onclick=async()=>{
- if(photoreal.enabled){
- const button=document.querySelector('#export'),cancel=document.querySelector('#cancel-render');button.disabled=true;document.querySelector('#export-quality').disabled=true;cancel.hidden=false;document.querySelector('aside').inert=true;quality.querySelector('[role=group]').inert=true;
- try{await photoreal.exportImage(document.querySelector('#export-quality').value);}catch(error){document.querySelector('#render-status').textContent=error.message;}finally{button.disabled=false;document.querySelector('#export-quality').disabled=false;cancel.hidden=true;document.querySelector('aside').inert=false;quality.querySelector('[role=group]').inert=false;resize();}
- return;
- }
- const ratio=renderer.getPixelRatio();
- try {
-  renderer.setPixelRatio(1.5);renderer.setSize(1920,1080,false);camera.aspect=16/9;camera.updateProjectionMatrix();pipeline.resize(1920,1080,1.5);pipeline.render();
-  const a=document.createElement('a');a.download='roomlight-background.png';const output=document.createElement('canvas');output.width=1920;output.height=1080;const ctx=output.getContext('2d');ctx.imageSmoothingQuality='high';ctx.drawImage(renderer.domElement,0,0,1920,1080);a.href=output.toDataURL('image/png');a.click();
- } finally {renderer.setPixelRatio(ratio);resize();pipeline.render();}
+const exportButton = document.querySelector('#export');
+const exportQuality = document.querySelector('#export-quality');
+const exportResolution = document.querySelector('#export-resolution');
+const cancelExport = document.querySelector('#cancel-render');
+const renderModes = quality.querySelector('[role=group]');
+const sidebar = document.querySelector('aside');
+const gl = renderer.getContext();
+
+exportButton.onclick = async () => {
+  const resolution = exportResolution.value;
+  if (photoreal.enabled) {
+    exportButton.disabled = exportQuality.disabled = exportResolution.disabled = true;
+    cancelExport.hidden = false;
+    sidebar.inert = renderModes.inert = true;
+    try {
+      await photoreal.exportImage(exportQuality.value, resolution);
+    } catch (error) {
+      exportStatus.textContent = error.message;
+    } finally {
+      exportButton.disabled = exportQuality.disabled = exportResolution.disabled = false;
+      cancelExport.hidden = true;
+      sidebar.inert = renderModes.inert = false;
+      resize();
+      dirty = true;
+    }
+    return;
+  }
+
+  const { width, height } = EXPORT_SIZES[resolution];
+  const ratio = renderer.getPixelRatio();
+  const size = renderer.getSize(new THREE.Vector2());
+  try {
+    if (gl.isContextLost()) throw new Error('The graphics context was lost. Wait for the preview to return.');
+    renderer.setDrawingBufferSize(width, height, 1.5);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    pipeline.resize(width, height, 1.5);
+    pipeline.render();
+    const output = document.createElement('canvas');
+    output.width = width;
+    output.height = height;
+    const ctx = output.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(renderer.domElement, 0, 0, width, height);
+    if (gl.isContextLost()) throw new Error('The graphics context was lost. Try a lower export resolution.');
+    const link = document.createElement('a');
+    link.download = 'roomlight-background.png';
+    link.href = output.toDataURL('image/png');
+    link.click();
+    exportStatus.textContent = 'Download started';
+  } catch (error) {
+    exportStatus.textContent = error.message;
+  } finally {
+    renderer.setDrawingBufferSize(size.x, size.y, ratio);
+    resize();
+    dirty = true;
+  }
 };
 let dirty=true;
 const invalidate=(event)=>{dirty=true;const cameraOnly=Array.isArray(event)||Boolean(event?.target?.closest?.('.camera'));photoreal.invalidate(cameraOnly?'camera':'scene');};
@@ -193,7 +286,25 @@ THREE.DefaultLoadingManager.onLoad=()=>{pipeline.invalidateReflections();invalid
 document.querySelector('aside').addEventListener('input',invalidate);
 document.querySelector('aside').addEventListener('click',invalidate);
 new ResizeObserver(invalidate).observe(viewport);
-updateLights();updateCamera();resize();renderer.setAnimationLoop(()=>{if(photoreal.exporting)return;if(dirty){pipeline.render();dirty=false;}photoreal.frame();});
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  pipeline.invalidateReflections();
+  renderer.shadowMap.needsUpdate = true;
+  scene.traverse(object => {
+    if (object.shadow) object.shadow.needsUpdate = true;
+  });
+  dirty = true;
+});
+updateLights();
+updateCamera();
+resize();
+renderer.setAnimationLoop(() => {
+  if (photoreal.exporting || gl.isContextLost()) return;
+  if (dirty) {
+    pipeline.render();
+    dirty = false;
+  }
+  photoreal.frame();
+});
 
-document.querySelector('#cancel-render').onclick=()=>photoreal.cancel();
+cancelExport.onclick = () => photoreal.cancel();
 for(const id of ['quality-fast','quality-real'])document.getElementById(id).onclick=()=>{const real=id==='quality-real';photoreal.setEnabled(real);document.getElementById('quality-real').setAttribute('aria-pressed',String(real));document.getElementById('quality-fast').setAttribute('aria-pressed',String(!real));invalidate();};

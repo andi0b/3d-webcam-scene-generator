@@ -4,25 +4,29 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { createNormalTexture } from './surface-normals.js';
 
 // Stable variation: changing a light or exporting never regenerates the plants.
 function randomSource(seed) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
 }
 
-export function surfaceNoise() {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 256;
-  const ctx = canvas.getContext('2d'), pixels = ctx.createImageData(256, 256), random = randomSource(123);
-  for (let i = 0; i < pixels.data.length; i += 4) {
-    const value = 110 + random() * 36;
-    pixels.data.set([value, value, value, 255], i);
+let plasterTexture;
+export function plasterNormalMap() {
+  if (!plasterTexture) {
+    const size = 128;
+    const random = randomSource(123);
+    const height = Float32Array.from({ length: size * size }, random);
+    plasterTexture = createNormalTexture(size, size, (x, y) => height[y * size + x], .045);
+    plasterTexture.repeat.set(12, 8);
   }
-  ctx.putImageData(pixels, 0, 0);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(12, 8);
-  return texture;
+  return plasterTexture;
+}
+
+export function oakNormalMap({ image }) {
+  const { width, height } = image;
+  const { data } = image.getContext('2d').getImageData(0, 0, width, height);
+  return createNormalTexture(width, height, (x, y) => data[(y * width + x) * 4] / 255, 1.3);
 }
 
 // Fine longitudinal pores, rather than a whole photograph repeated on every board.
@@ -45,6 +49,59 @@ export function oakTexture(seed = 18) {
   return texture;
 }
 
+export function applySurfaceTexture(material, textureLoader, url, anisotropy, normalScale) {
+  material.map = textureLoader.load(url, ({ image }) => {
+    // Keep the shallow surface relief aligned with the visible grain and pores.
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(image.width / 2);
+    canvas.height = Math.floor(image.height / 2);
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const { width, height } = canvas;
+    const { data } = context.getImageData(0, 0, width, height);
+    material.normalMap = createNormalTexture(width, height, (x, y) => data[(y * width + x) * 4 + 1] / 255, 1.3);
+    material.normalMap.anisotropy = anisotropy;
+    material.normalScale.setScalar(normalScale);
+    material.needsUpdate = true;
+  });
+  material.map.colorSpace = THREE.SRGBColorSpace;
+  material.map.anisotropy = anisotropy;
+}
+
+export function addAshFloor(scene, textureLoader, anisotropy) {
+  const material = new THREE.MeshStandardMaterial({ roughness: .62 });
+  applySurfaceTexture(material, textureLoader, '/assets/white-ash.jpg', anisotropy, .5);
+  const random = randomSource(8619);
+  const grainWidth = .10;
+  const margin = .012;
+  for (let row = 0; row < 25; row++) {
+    let z = -3;
+    let length = .45 + random() * 1.05;
+    while (z < 3) {
+      const remaining = 3 - z;
+      const depth = remaining - length < .28 ? remaining : length;
+      const geometry = new THREE.BoxGeometry(.283, .065, depth - .002);
+      const uv = geometry.getAttribute('uv');
+      // Each plank takes a different cut from the sheet, with grain running along its length.
+      const grainLength = depth / 2.1;
+      const uStart = margin + random() * (1 - grainWidth - 2 * margin);
+      const vStart = margin + random() * (1 - grainLength - 2 * margin);
+      const reverse = random() < .5;
+      for (let i = 0; i < uv.count; i++) {
+        const u = reverse ? 1 - uv.getX(i) : uv.getX(i);
+        const v = reverse ? 1 - uv.getY(i) : uv.getY(i);
+        uv.setXY(i, uStart + u * grainWidth, vStart + v * grainLength);
+      }
+      const plank = new THREE.Mesh(geometry, material);
+      plank.position.set(-3.24 + row * .285, -.05, z + depth / 2);
+      plank.receiveShadow = true;
+      scene.add(plank);
+      z += depth;
+      length = 1.23 + random() * .49;
+    }
+  }
+}
+
 export function createPipeline(renderer, scene, camera, windowMaterial) {
   const reflectionTarget = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
   const reflectionCamera = new THREE.CubeCamera(.1, camera.far, reflectionTarget);
@@ -52,8 +109,12 @@ export function createPipeline(renderer, scene, camera, windowMaterial) {
   const captureBackground = new THREE.Color('#252629');
   let reflectionsDirty = true;
   let reflectedWindowIntensity = 1;
-  // The default canvas antialias flag does not antialias offscreen composer targets.
-  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: Math.min(4, renderer.capabilities.maxSamples) });
+  // Offscreen MSAA requires a sample count supported by both attachments.
+  const gl = renderer.getContext();
+  const colorSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES) ?? [];
+  const depthSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) ?? [];
+  const samples = Math.max(0, ...colorSamples.filter(count => count <= 4 && depthSamples.includes(count)));
+  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples });
   const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
   const ao = new SSAOPass(scene, camera, 512, 512, 32);
@@ -153,7 +214,9 @@ export function addPlant(scene, x, y, z, scale = 1, trailing = false, { overhang
   function mesh(geometry, material) {
     const item = new THREE.Mesh(geometry, material); item.castShadow = item.receiveShadow = true; group.add(item); return item;
   }
-  const ceramic = new THREE.MeshStandardMaterial({ color: '#b9b29d', roughness: .72, bumpMap: surfaceNoise(), bumpScale: .001 });
+  const ceramic = new THREE.MeshStandardMaterial({
+    color: '#b9b29d', roughness: .72, normalMap: plasterNormalMap(), normalScale: new THREE.Vector2(.45, .45),
+  });
   const profile = [[0,0],[.12,0],[.135,.015],[.165,.25],[.17,.275],[.157,.28],[.148,.25],[.12,.035]].map(p => new THREE.Vector2(...p));
   mesh(new THREE.LatheGeometry(profile, 48), ceramic);
   const saucerProfile = [[0,0],[.155,0],[.18,.009],[.18,.027],[.17,.031],[.158,.013],[0,.013]].map(p => new THREE.Vector2(...p));

@@ -42,6 +42,13 @@ export function createGuidedDenoiser(renderer, preview, camera) {
   const filter=new FullScreenQuad(material);
   const output=new FullScreenQuad(new THREE.MeshBasicMaterial({depthTest:false,depthWrite:false}));
   return {
+    dispose() {
+      for (const target of targets) target.dispose();
+      material.dispose();
+      output.material.dispose();
+      filter.dispose();
+      output.dispose();
+    },
     render(texture,width,height,{passes=5,preserveEdges=false}={}) {
       const previous=renderer.getRenderTarget();
       try{

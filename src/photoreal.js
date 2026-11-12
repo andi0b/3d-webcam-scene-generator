@@ -6,9 +6,9 @@ export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 }
 const OIDN_PREVIEW_SETTINGS = { samples: 8, scale: .55, bounces: 3 };
 
 export const EXPORT_PRESETS = {
-  quick: { samples: 16, bounces: 4 },
-  detailed: { samples: 96, bounces: 4 },
-  maximum: { samples: 256, bounces: 6 },
+  quick: { samples: 10, bounces: 4 },
+  detailed: { samples: 48, bounces: 6 },
+  maximum: { samples: 96, bounces: 8 },
 };
 
 const exportCancelled = Symbol('export cancelled');

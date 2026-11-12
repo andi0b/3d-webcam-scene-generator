@@ -70,7 +70,7 @@ export function applySurfaceTexture(material, textureLoader, url, anisotropy, no
 
 export function addAshFloor(scene, textureLoader, anisotropy) {
   const material = new THREE.MeshStandardMaterial({ roughness: .62 });
-  applySurfaceTexture(material, textureLoader, '/assets/white-ash.jpg', anisotropy, .5);
+  applySurfaceTexture(material, textureLoader, `${import.meta.env.BASE_URL}assets/white-ash.jpg`, anisotropy, .5);
   const random = randomSource(8619);
   const grainWidth = .10;
   const margin = .012;

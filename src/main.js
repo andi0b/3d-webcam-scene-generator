@@ -67,6 +67,7 @@ const scene = new THREE.Scene(); scene.background = new THREE.Color('#c4aa91');
 const camera = new THREE.PerspectiveCamera(43, 16 / 9, .1, 30);
 const mat = (color, roughness=1, metalness=0) => new THREE.MeshStandardMaterial({color, roughness, metalness});
 const textureLoader = new THREE.TextureLoader();
+const assets = `${import.meta.env.BASE_URL}assets/`;
 function loadSurface(url, repeat=2){const t=textureLoader.load(url);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(repeat,repeat);t.anisotropy=renderer.capabilities.getMaxAnisotropy();return t;}
 const wall = mat('#e1d7c9'), wood = mat('#ffffff', .42);
 const dark = mat('#34322c'), cream = mat('#e0d1ba'), green = mat('#53663b'), gold = mat('#ac8657', .5, .4);
@@ -81,7 +82,7 @@ function cylinder(rt,rb,h,m,x,y,z){const o=new THREE.Mesh(new THREE.CylinderGeom
 // A complete back wall meets a left wall with a deep, side-facing window opening.
 box(7.3,3.95,.18,wall,.4,1.975,-3);
 const ceiling = mat('#ffffff', .91);
-applySurfaceTexture(ceiling, textureLoader, '/assets/board-formed-concrete.jpg', wood.map.anisotropy, .55);
+applySurfaceTexture(ceiling, textureLoader, `${assets}board-formed-concrete.jpg`, wood.map.anisotropy, .55);
 // Keep a solid roof above the narrow joints between the four visible slabs.
 box(7.3, .08, 6, ceiling, .4, 4.03, 0);
 const slabWidth = 6.72 / 4;
@@ -142,8 +143,8 @@ addAshFloor(scene, textureLoader, wood.map.anisotropy);
 box(7.3,.14,.09,cream,.4,.05,-2.87);box(.09,.14,5.9,cream,-3.12,.05,0);
 const frameDark = mat('#57483c', .85), hardware = mat('#4b4b46', .32, .72);
 const sashWood = mat('#e2e6e9', .52), sillWood = mat('#f1eeeb', .46);
-applySurfaceTexture(sashWood, textureLoader, '/assets/oak.png', wood.map.anisotropy, .32);
-applySurfaceTexture(sillWood, textureLoader, '/assets/oak-sill.png', wood.map.anisotropy, .35);
+applySurfaceTexture(sashWood, textureLoader, `${assets}oak.png`, wood.map.anisotropy, .32);
+applySurfaceTexture(sillWood, textureLoader, `${assets}oak-sill.png`, wood.map.anisotropy, .35);
 
 // Map grain along each piece of wood, using the rounded geometry's UVs at the bevels.
 function windowTimber(w, h, d, radius, material, x, y, z, grainWidth = .36) {
@@ -241,7 +242,7 @@ backdrop.rotation.y = Math.PI / 2;
 // The photograph sits behind the view through the window and lets traced sunlight pass.
 backdropMat.castShadow = false;
 backdrop.visibleToShadowRays = false;
-const outsideImages = Object.fromEntries(['city','forest','mountains'].map(name=>{const texture=textureLoader.load('/assets/'+name+'.png');texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=renderer.capabilities.getMaxAnisotropy();return [name,texture];}));
+const outsideImages = Object.fromEntries(['city','forest','mountains'].map(name=>{const texture=textureLoader.load(`${assets}${name}.png`);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=renderer.capabilities.getMaxAnisotropy();return [name,texture];}));
 let view = 'city', mood = 'day';
 function updateBackdrop() {
   const image = outsideImages[view];
@@ -267,7 +268,7 @@ addPlant(scene,-1.92,1.9,-2.72,.58,false);
 // Slim oak frame and tactile mountain relief, balanced to the right of the person.
 roundedBox(2.40,1.28,.055,.009,wood,1.40,1.99,-2.855);
 box(2.32,1.20,.025,dark,1.40,1.99,-2.818);
-const reliefImage = textureLoader.load('/assets/alpine-relief.jpg');
+const reliefImage = textureLoader.load(`${assets}alpine-relief.jpg`);
 reliefImage.colorSpace = THREE.SRGBColorSpace;
 reliefImage.anisotropy = wood.map.anisotropy;
 addRelief(scene, 1.40, 1.99, -2.80, 2.28, 1.16, reliefImage);
@@ -294,8 +295,32 @@ const globe=sphere(.13,new THREE.MeshStandardMaterial({color:'#fff0d8',emissive:
 const chair = readingChair(scene, wood);
 chair.scale.multiplyScalar(1.656);
 // The runners start above the model origin; lower them onto the floorboards.
-chair.position.set(-1.69, -.0583, -1.74);
-chair.rotation.y = .40;
+chair.position.set(-1.478, -.0583, -1.528);
+chair.rotation.y = .40 - Math.PI / 3;
+
+// Low reading table tucked between the chair and the window corner.
+const readingTableX = -2.694, readingTableZ = -2.344, readingTableTop = .54;
+roundedBox(.56, .05, .48, .024, wood, readingTableX, readingTableTop - .025, readingTableZ);
+for (const x of [-1, 1]) {
+  for (const z of [-1, 1]) {
+    const leg = cylinder(.025, .017, .516, deskLeg, readingTableX + x * .177, .24, readingTableZ + z * .145);
+    leg.rotation.set(z * -.09, 0, x * .09);
+  }
+}
+const tableBooks = [
+  { x: -.145, z: -.035, width: .039, height: .28, depth: .20, color: '#46594f', title: 'FIELD NOTES', angle: -.08 },
+  { x: -.113, z: -.018, width: .032, height: .24, depth: .174, color: '#a47955', title: 'WOODLANDS', angle: .10 },
+  { x: -.083, z: -.045, width: .026, height: .19, depth: .14, color: '#847461', title: 'SEASONS', angle: -.16 },
+];
+let bookBase = readingTableTop;
+for (const { x, z, width, height, depth, color, title, angle } of tableBooks) {
+  const volume = book(scene, {
+    x: readingTableX + x, y: bookBase, z: readingTableZ + z, width, height, depth, color, title, flat: true,
+  });
+  volume.rotation.y = angle;
+  bookBase += width;
+}
+
 // A flush opal diffuser and a wide ceiling light for the whole room.
 const ceilingX = -.45, ceilingZ = -1.22;
 cylinder(.30,.30,.10,mat('#c8c5bb',.55,.25),ceilingX,3.90,ceilingZ);

@@ -1,22 +1,41 @@
 # Roomlight Studio
 
-A small Three.js prototype for composing a 3D webcam background. The room, furnishings and lighting are 3D; the window views are generated photographic backdrops, and the wood and plaster use generated image textures.
+A browser-based Three.js studio for composing still-image backgrounds for video calls. The room, furnishings, and lighting are rendered in 3D. The window views use generated photographic backdrops.
 
-## Run
+[Open Roomlight Studio](https://andi0b.github.io/3d-webcam-scene-generator/)
 
-Install Node.js, then run `npm install` and `npm run dev`. Open the HTTPS URL printed in the terminal, usually `https://127.0.0.1:5173`. Vite generates a self-signed development certificate, so the browser may show a certificate warning on the first visit.
+## Compose a background
 
-Choose a scene and lighting, adjust the camera, and export a PNG to use as a virtual background in your meeting app. Export resolution offers 1920 × 1080, 1280 × 720, and 854 × 480 in either rendering mode.
+1. Choose a city, forest, or mountain view and set the weather and room lighting.
+2. Adjust the camera position, angle, and field of view. Use the person guide to frame yourself in the scene.
+3. Export a PNG at 1920 × 1080, 1280 × 720, or 854 × 480 and import it as a virtual background in your meeting app. The person guide is excluded from the export.
 
-The export is a still image; it does not create a virtual webcam or remove your camera background. Rendering quality and performance depend on your browser and graphics hardware.
+Fast preview and export use WebGL. Realistic preview traces eight samples with three light bounces at 55% of the viewport width and height on WebGPU, then runs Open Image Denoise. If WebGPU cannot initialize, the preview uses WebGL at 45% resolution with guided filtering. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause.
 
+Realistic PNG export requires a WebGPU-capable browser on HTTPS or localhost. It traces at the selected resolution and runs Open Image Denoise with albedo and normal data. Quick uses 10 samples and four bounces, Detailed uses 48 samples and six bounces, and Maximum uses 96 samples and eight bounces. You can cancel during rendering or denoising.
 
-## Realistic lighting
+## Run locally
 
-The optional Realistic lighting mode traces eight samples with three light bounces at 55% of the viewport resolution in each dimension on WebGPU. It displays the image after Open Image Denoise finishes, using the same denoiser and weights as realistic export. If WebGPU cannot initialize, the preview uses WebGL at 45% resolution with guided filtering. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause. Camera-only changes skip material and environment uploads. Fast preview is selected initially.
+Use Node.js 24, the version used by the deployment workflow.
 
-Realistic export requires a WebGPU-capable browser on localhost or HTTPS. It traces at the selected resolution and runs Open Image Denoise with albedo and normals accumulated by the tracer. Quick uses 16 samples and four bounces, Detailed uses 96 samples and four bounces, and Maximum uses 256 samples and six bounces. The previous preview stays visible during export. You can cancel while rendering or denoising. Fast export uses WebGL.
+```sh
+npm ci
+npm run dev
+```
 
-The [path tracer's denoising example](https://github.com/gkjohnson/three-gpu-pathtracer/blob/v0.0.28/example/denoise.js) supplies the two bundled [Intel Open Image Denoise weights](https://github.com/RenderKit/oidn-weights) under [Apache 2.0](public/assets/oidn/LICENSE.txt). The app serves them locally.
+Open the HTTPS URL printed by Vite, usually `https://127.0.0.1:5173`. The development server uses a self-signed certificate, so your browser may show a warning on the first visit.
 
-The clean raster preview remains visible while preview path tracing accumulates. Realistic export uses a separate WebGPU canvas. The artwork uses RGBA vertex colors because the WebGL path-tracer merger loses RGB colors in a mixed RGB/RGBA scene. Run `node tests/relief-colors.mjs` to check that regression.
+```sh
+npm run build
+npm run preview
+```
+
+`npm run build` creates the static site in `dist/`. Run `node tests/chair-dimensions.mjs` and `node tests/relief-colors.mjs` to check the chair geometry and relief colors.
+
+## Deployment
+
+Every push to `main` triggers the [GitHub Pages workflow](.github/workflows/pages.yml). It installs locked dependencies, builds the site with the GitHub Pages project path, and publishes `dist/`. To deploy manually, run **Deploy to GitHub Pages** from the repository’s Actions tab with `main` selected.
+
+## Denoising weights
+
+The app serves the two bundled [Intel Open Image Denoise weights](https://github.com/RenderKit/oidn-weights) from the [path tracer’s denoising example](https://github.com/gkjohnson/three-gpu-pathtracer/blob/v0.0.28/example/denoise.js) under the [Apache 2.0 license](public/assets/oidn/LICENSE.txt).

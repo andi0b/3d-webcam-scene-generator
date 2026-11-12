@@ -185,8 +185,14 @@ const deskLight=new THREE.SpotLight('#ffcf95',5,4,Math.PI/3,.8,2);deskLight.posi
 const shelfLight=new THREE.RectAreaLight('#ffd39a',5,.32,.32);shelfLight.position.set(-1.38,2.96,-2.43);shelfLight.lookAt(-1.38,2.8,-3);scene.add(shelfLight);
 const shelfWash=new THREE.RectAreaLight('#ffce92',3.5,1.4,.055);shelfWash.position.set(-2.04,2.72,-2.61);shelfWash.lookAt(-2.04,1.9,-2.9);scene.add(shelfWash);
 const fill=new THREE.RectAreaLight('#f1ede4',.8,3,2);fill.position.set(0,2.4,1.5);fill.lookAt(0,1.7,-3);scene.add(fill);
+// A soft spot lifts the print while grazing the relief from above.
+const pictureLight = new THREE.SpotLight('#fffaf4', 0, 0, .58, .42, 2);
+pictureLight.position.set(1.0, 3.30, -.75);
+pictureLight.target.position.set(1.40, 1.99, -2.76);
+scene.add(pictureLight, pictureLight.target);
 function updateLights(){
  const isNight=mood==='night',outside=document.querySelector('#outside').checked,deskOn=document.querySelector('#desk').checked,shelfOn=document.querySelector('#shelf').checked;
+ const fillOn = document.querySelector('#fill').checked;
  const ceilingMode=ceilingModes[ceilingControl.value];
  ceilingLight.color.set(ceilingMode.color);ceilingLight.intensity=ceilingMode.intensity;
  ceilingBounce.color.copy(ceilingLight.color);ceilingBounce.intensity=ceilingMode.bounce;
@@ -196,9 +202,10 @@ function updateLights(){
  const totalSun=sun.intensity;for(const light of sunSamples){light.intensity=totalSun/sunSamples.length;light.color.copy(sun.color);if(light!==sun)light.position.copy(sun.position).add(light.userData.offset);}
  windowFill.color.set(isNight?'#a8bcf1':mood==='golden'?'#ffe2bd':'#eef4ff');
  windowFill.intensity=outside?(isNight?.08:mood==='golden'?3.5:4.3):0;ambient.intensity=isNight?.06:outside?.20:.10;scene.environmentIntensity=isNight?.025:.13;
- deskLight.intensity=deskOn?14:0;shelfLight.intensity=shelfOn?5:0;shelfWash.intensity=shelfOn?8:0;fill.intensity=document.querySelector('#fill').checked?(isNight?.12:.8):0;
+ deskLight.intensity=deskOn?14:0;shelfLight.intensity=shelfOn?5:0;shelfWash.intensity=shelfOn?8:0;fill.intensity=fillOn?(isNight?.12:.8):0;
+ pictureLight.intensity = fillOn ? (isNight ? 2 : 7) : 0;
  // The tracer picks from visible lights uniformly. Disabled lights would waste samples.
- for (const light of [ceilingLight, sun, windowFill, deskLight, shelfLight, shelfWash, fill]) {
+ for (const light of [ceilingLight, sun, windowFill, deskLight, shelfLight, shelfWash, fill, pictureLight]) {
   light.visible = light.intensity > 0;
  }
  bulb.material.color.set(deskOn?'#ffe0ad':'#77716b');globe.material.color.set(shelfOn?'#ffe1b0':'#8b8174');bulb.material.emissiveIntensity=deskOn?1.5:0;globe.material.emissiveIntensity=shelfOn?1.5:0;renderer.shadowMap.needsUpdate=true;

@@ -263,8 +263,8 @@ export function addPlant(scene, x, y, z, scale = 1, trailing = false, { overhang
   return group;
 }
 
-// Actual sculpted relief: overlapping ridges catch light instead of gold wires.
-export function addRelief(scene, x, y, z, width, height) {
+// The sculpted ridges give the photographic print depth and catch room light.
+export function addRelief(scene, x, y, z, width, height, map = null) {
   const geometry = new THREE.PlaneGeometry(width, height, 256, 128);
   const positions = geometry.attributes.position;
   const colors = [];
@@ -290,6 +290,7 @@ export function addRelief(scene, x, y, z, width, height) {
   }
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
   geometry.computeVertexNormals();
-  const relief = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 }));
+  const material = new THREE.MeshStandardMaterial({ map, vertexColors: !map, roughness: .9 });
+  const relief = new THREE.Mesh(geometry, material);
   relief.position.set(x, y, z); relief.castShadow = relief.receiveShadow = true; scene.add(relief);
 }

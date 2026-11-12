@@ -128,7 +128,10 @@ addPlant(scene,-1.92,1.9,-2.72,.58,false);
 // Slim oak frame and tactile mountain relief, balanced to the right of the person.
 roundedBox(2.40,1.28,.055,.009,wood,1.40,1.99,-2.855);
 box(2.32,1.20,.025,dark,1.40,1.99,-2.818);
-addRelief(scene,1.40,1.99,-2.80,2.28,1.16);
+const reliefImage = textureLoader.load('/assets/alpine-relief.jpg');
+reliefImage.colorSpace = THREE.SRGBColorSpace;
+reliefImage.anisotropy = wood.map.anisotropy;
+addRelief(scene, 1.40, 1.99, -2.80, 2.28, 1.16, reliefImage);
 // Desk and lamp
 // Rounded top and inset tapered-looking legs keep the desk visually light.
 roundedBox(2.3,.095,1.02,.045,mat('#e0d1ba',.53),2.45,.87,-1.95);

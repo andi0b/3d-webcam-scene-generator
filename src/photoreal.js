@@ -1,7 +1,7 @@
 import { createGuidedDenoiser } from './denoise.js';
 import { EXPORT_SIZES, nextFrame, renderRealisticExport } from './realistic-export.js';
 
-export const PREVIEW_SETTINGS = { samples: 16, scale: .55, bounces: 3, tiles: 1 };
+export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 };
 
 export const EXPORT_PRESETS = {
   quick: { samples: 16, bounces: 4 },
@@ -13,7 +13,7 @@ const exportCancelled = Symbol('export cancelled');
 
 export function createPhotoreal(renderer, scene, camera, preview, status, exportStatus) {
   const gl = renderer.getContext();
-  let tracer, denoiser, library, sky, starting;
+  let tracer, denoiser, library, starting;
   let enabled = false, failed = false, exporting = false, cancelled = false;
   let pending = true, sceneChanged = true, changed = performance.now();
   let contextGeneration = 0;
@@ -61,14 +61,6 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
     if (textures.some(({ image }) => image.naturalWidth === 0)) {
       throw new Error('A scene texture failed to load.');
     }
-
-    if (!sky) {
-      sky = new library.GradientEquirectTexture(128);
-      sky.topColor.set('#dae6f2');
-      sky.bottomColor.set('#b7a58b');
-      sky.update();
-    }
-    scene.environment = sky;
   }
 
   function releaseTracer() {

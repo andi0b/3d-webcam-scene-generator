@@ -110,7 +110,8 @@ export function readingChair(scene, wood) {
   }
   const birchMap = new THREE.CanvasTexture(birchCanvas); birchMap.colorSpace = THREE.SRGBColorSpace;
   birchMap.wrapS = birchMap.wrapT = THREE.RepeatWrapping;
-  const birch = new THREE.MeshStandardMaterial({ color: '#ffffff', map: birchMap, roughness: .72 });
+  const satinFinish = { roughness: .46, clearcoat: .28, clearcoatRoughness: .38 };
+  const birch = new THREE.MeshPhysicalMaterial({ color: '#ffffff', map: birchMap, ...satinFinish });
   // Exposed edges of the bentwood show the fine layers of the veneer stack.
   const laminateCanvas=document.createElement('canvas'); laminateCanvas.width=128; laminateCanvas.height=128;
   const laminateCtx=laminateCanvas.getContext('2d'); laminateCtx.fillStyle='#e5d8b5'; laminateCtx.fillRect(0,0,128,128);
@@ -120,7 +121,7 @@ export function readingChair(scene, wood) {
   }
   const laminateMap=new THREE.CanvasTexture(laminateCanvas); laminateMap.colorSpace=THREE.SRGBColorSpace;
   laminateMap.wrapS=laminateMap.wrapT=THREE.RepeatWrapping; laminateMap.repeat.set(1,12);
-  const laminate=new THREE.MeshStandardMaterial({map:laminateMap,roughness:.72});
+  const laminate = new THREE.MeshPhysicalMaterial({ map: laminateMap, ...satinFinish });
   const weave = createNormalTexture(128, 128, (x, y) =>
     .25 * (Math.cos(x * Math.PI / 4) + Math.cos(y * Math.PI / 4)) +
     .125 * Math.cos((x + y) * Math.PI / 8), .22);

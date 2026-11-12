@@ -102,13 +102,22 @@ export function addAshFloor(scene, textureLoader, anisotropy) {
   }
 }
 
-export function createPipeline(renderer, scene, camera, windowMaterial) {
-  const reflectionTarget = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
-  const reflectionCamera = new THREE.CubeCamera(.1, camera.far, reflectionTarget);
+export function createPipeline(renderer, scene, camera, areaLights) {
+  const previewReflections = {
+    target: new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType }),
+    dirty: true,
+    ready: false,
+  };
+  const exportReflections = {
+    target: new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType }),
+    dirty: true,
+    ready: false,
+  };
+  const reflectionCamera = new THREE.CubeCamera(.1, camera.far, previewReflections.target);
   reflectionCamera.position.set(-.5, 1.35, -1.35);
-  const captureBackground = new THREE.Color('#252629');
-  let reflectionsDirty = true;
-  let reflectedWindowIntensity = 1;
+  const captureBackground = new THREE.Color(0x000000);
+  let reflectionRefreshAt = 0;
+  const previewReflectionsDue = () => previewReflections.dirty && performance.now() >= reflectionRefreshAt;
   // Offscreen MSAA requires a sample count supported by both attachments.
   const gl = renderer.getContext();
   const colorSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES) ?? [];
@@ -126,36 +135,42 @@ export function createPipeline(renderer, scene, camera, windowMaterial) {
   composer.addPass(new SMAAPass());
   return {
     get guides(){return {normal:ao.normalRenderTarget.texture,depth:ao.normalRenderTarget.depthTexture,color:composer.readBuffer.texture};},
-    invalidateReflections(windowIntensity = reflectedWindowIntensity) {
-      reflectedWindowIntensity = windowIntensity;
-      reflectionsDirty = true;
+    get previewReflectionsDue() { return previewReflectionsDue(); },
+    invalidateReflections({ immediate = false } = {}) {
+      previewReflections.dirty = exportReflections.dirty = true;
+      reflectionRefreshAt = immediate ? 0 : performance.now() + 160;
     },
     resize(w, h, ratio) { composer.setPixelRatio(ratio); composer.setSize(w, h); },
-    render() {
+    render({ forExport = false } = {}) {
       const { environment, environmentIntensity } = scene;
+      const reflections = forExport ? exportReflections : previewReflections;
+      // Zero-intensity area lights preserve the preview shader layout between toggles.
+      const disabledLights = forExport ? [] : areaLights.filter(light => !light.visible);
+      for (const light of disabledLights) light.visible = true;
       try {
-        if (reflectionsDirty) {
+        if (reflections.dirty && (forExport || previewReflectionsDue())) {
           const background = scene.background;
-          const windowIntensity = windowMaterial.emissiveIntensity;
           // Capture direct lighting once. Three.js filters the cubemap for each material's roughness.
           scene.environment = null;
           scene.background = captureBackground;
-          windowMaterial.emissiveIntensity = reflectedWindowIntensity;
           try {
+            reflectionCamera.renderTarget = reflections.target;
             reflectionCamera.update(renderer, scene);
-            reflectionsDirty = false;
+            reflections.dirty = false;
+            reflections.ready = true;
           } finally {
             scene.background = background;
-            windowMaterial.emissiveIntensity = windowIntensity;
           }
         }
-        scene.environment = reflectionTarget.texture;
-        scene.environmentIntensity = .75;
+        scene.environment = reflections.ready ? reflections.target.texture : null;
+        // Avoid showing light from the previous settings while the preview capture is pending.
+        scene.environmentIntensity = reflections.dirty ? 0 : .75;
         // SSAO caches projection uniforms; keep them current for the FOV slider.
         ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
         ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
         composer.render();
       } finally {
+        for (const light of disabledLights) light.visible = false;
         scene.environment = environment;
         scene.environmentIntensity = environmentIntensity;
       }
@@ -203,10 +218,92 @@ function leafTexture() {
 
 const blade = leafGeometry(), leafMap = leafTexture();
 const leaves = ['#c2d693', '#a8c47d', '#8fae60', '#d2da9d'].map(color => new THREE.MeshPhysicalMaterial({
-  color, map: leafMap, roughness: .58, side: THREE.DoubleSide, emissive: '#536c25', emissiveIntensity: .06,
+  color, map: leafMap, roughness: .58, side: THREE.DoubleSide,
   clearcoat: .06, clearcoatRoughness: .65,
 }));
 const stemMaterial = new THREE.MeshStandardMaterial({ color: '#59703a', roughness: .8 });
+
+export function addOutdoorBranches(scene) {
+  const group = new THREE.Group();
+  group.position.x = -4.42;
+  scene.add(group);
+  const bark = new THREE.MeshStandardMaterial({ color: '#514134', roughness: .95 });
+  const foliage = new THREE.MeshStandardMaterial({ color: '#82743e', roughness: .8, side: THREE.DoubleSide });
+  const random = randomSource(2741);
+
+  function addBranch(points, baseRadius, tipRadius) {
+    const curve = new THREE.CatmullRomCurve3(points);
+    const segments = Math.max(6, Math.ceil(curve.getLength() * 20));
+    const sides = 7;
+    const geometry = new THREE.TubeGeometry(curve, segments, 1, sides);
+    const { position, normal } = geometry.attributes;
+    for (let row = 0; row <= segments; row++) {
+      const t = row / segments;
+      const center = curve.getPointAt(t);
+      const radius = THREE.MathUtils.lerp(baseRadius, tipRadius, t);
+      for (let side = 0; side <= sides; side++) {
+        const i = row * (sides + 1) + side;
+        position.setXYZ(i,
+          center.x + normal.getX(i) * radius,
+          center.y + normal.getY(i) * radius,
+          center.z + normal.getZ(i) * radius);
+      }
+    }
+    const mesh = new THREE.Mesh(geometry, bark);
+    mesh.castShadow = true;
+    group.add(mesh);
+    return curve;
+  }
+
+  // Keep the thicker stem at the edge of the beam and fan the tips toward the wall.
+  const main = [
+    [-.04, 2.28, .99], [-.015, 2.56, .68], [.012, 2.78, .46],
+    [.045, 2.95, .285], [.032, 3.12, .185], [.08, 3.22, .23],
+  ].map(point => new THREE.Vector3(...point));
+  const limbs = [
+    addBranch(main, .031, .0018),
+    addBranch([
+      main[2], new THREE.Vector3(-.022, 2.83, .54),
+      new THREE.Vector3(-.07, 2.97, .61), new THREE.Vector3(-.05, 3.13, .57),
+    ], .012, .0015),
+    addBranch([
+      main[2], new THREE.Vector3(.02, 2.74, .35),
+      new THREE.Vector3(.05, 2.72, .22), new THREE.Vector3(.02, 2.78, .12),
+    ], .011, .0015),
+    addBranch([
+      main[3], new THREE.Vector3(.01, 3.05, .37),
+      new THREE.Vector3(.025, 3.17, .44), new THREE.Vector3(.055, 3.25, .49),
+    ], .010, .0015),
+    addBranch([
+      main[3], new THREE.Vector3(.05, 2.96, .19),
+      new THREE.Vector3(.03, 3.01, .10), new THREE.Vector3(.06, 3.10, .07),
+    ], .009, .0015),
+  ];
+  for (const limb of limbs) {
+    for (const [index, t] of [.42, .65, .84].entries()) {
+      const side = index % 2 ? -1 : 1;
+      const start = limb.getPointAt(t);
+      const end = start.clone().addScaledVector(limb.getTangentAt(t), .05 + random() * .055);
+      end.add(new THREE.Vector3((random() - .5) * .06, .025 + random() * .04, side * (.05 + random() * .065)));
+      const bend = start.clone().lerp(end, .5);
+      bend.y -= .018;
+      const twig = addBranch([start, bend, end], .0045, .0008);
+      for (const [leafIndex, leafT] of [.42, .68, .95].entries()) {
+        const leaf = new THREE.Mesh(blade, foliage);
+        leaf.position.copy(twig.getPointAt(leafT));
+        const swing = leafIndex % 2 ? -side : side;
+        leaf.rotation.set(
+          (random() - .5) * .8,
+          Math.PI / 2 + (random() - .5) * 1.2,
+          swing * (.45 + random() * 1.45),
+        );
+        leaf.scale.setScalar(.042 + random() * .033);
+        leaf.castShadow = true;
+        group.add(leaf);
+      }
+    }
+  }
+}
 
 export function addPlant(scene, x, y, z, scale = 1, trailing = false, { overhang = 0 } = {}) {
   const group = new THREE.Group(); group.position.set(x, y, z); group.scale.setScalar(scale); scene.add(group);

@@ -92,7 +92,9 @@ const bookTones=['#514943','#d1c4af','#71675a','#a69986','#3f423c','#b4aa98','#7
 ['Botanical Living','Architecture','Quiet Spaces','The Modern Home','Collected Works'].forEach((title,i)=>book(scene,{x:-2.12+i*.145,y:2.8,z:-2.7,width:.12,height:.36+(i%3)*.037,color:bookTones[i],title,lean:i===4?-.08:0}));
 // Dense, curved pothos with veined blades and naturally hanging stems.
 addPlant(scene,-2.57,2.8,-2.70,.72,true);
-addPlant(scene,-2.94,.77,-1.25,.8,true);addPlant(scene,-1.92,1.9,-2.72,.58,false);
+const windowPlant = addPlant(scene, -2.87, .754, -1.25, .8, true, { overhang: .10 });
+windowPlant.rotation.y = Math.PI / 2;
+addPlant(scene,-1.92,1.9,-2.72,.58,false);
 // Slim oak frame and tactile mountain relief, balanced to the right of the person.
 roundedBox(2.40,1.28,.055,.009,wood,1.40,1.99,-2.855);
 box(2.32,1.20,.025,dark,1.40,1.99,-2.818);
@@ -109,7 +111,11 @@ function rodBetween(a,b,r,material){const direction=new THREE.Vector3().subVecto
 cylinder(.2,.22,.045,dark,3.04,.96,-2.1);const joint1=new THREE.Vector3(3.04,1,-2.1),joint2=new THREE.Vector3(2.8,1.43,-2.1),joint3=new THREE.Vector3(3.05,1.76,-2.1);rodBetween(joint1,joint2,.018,dark);rodBetween(joint2,joint3,.018,dark);[joint1,joint2,joint3].forEach(p=>sphere(.045,dark,p.x,p.y,p.z));
 const shade=new THREE.Mesh(new THREE.CylinderGeometry(.09,.2,.28,48,1,true),new THREE.MeshStandardMaterial({color:'#252522',roughness:.35,metalness:.65,side:THREE.DoubleSide}));shade.position.set(3.11,1.7,-2.1);shade.rotation.z=-.45;shade.castShadow=true;scene.add(shade);const bulb=sphere(.075,new THREE.MeshStandardMaterial({color:'#fff0d8',emissive:'#ffe0a4',emissiveIntensity:1.5}),3.17,1.58,-2.1);
 const globe=sphere(.13,new THREE.MeshStandardMaterial({color:'#fff0d8',emissive:'#ffdc9b',emissiveIntensity:1.5,roughness:.35}),-1.38,2.94,-2.64);globe.castShadow=false;bulb.castShadow=false;globe.material.castShadow=false;bulb.material.castShadow=false;cylinder(.1,.11,.09,dark,-1.38,2.82,-2.64);
-const chair=readingChair(scene,wood); chair.scale.multiplyScalar(1.3);
+const chair = readingChair(scene, wood);
+chair.scale.multiplyScalar(1.38);
+// The runners start above the model origin; lower them onto the floorboards.
+chair.position.set(-1.69, -.0515, -1.74);
+chair.rotation.y = .40;
 // A flush opal diffuser and a wide ceiling light for the whole room.
 const ceilingX = -.45, ceilingZ = -1.22;
 cylinder(.30,.30,.10,mat('#c8c5bb',.55,.25),ceilingX,3.90,ceilingZ);

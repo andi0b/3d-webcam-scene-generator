@@ -147,7 +147,7 @@ const leaves = ['#c2d693', '#a8c47d', '#8fae60', '#d2da9d'].map(color => new THR
 }));
 const stemMaterial = new THREE.MeshStandardMaterial({ color: '#59703a', roughness: .8 });
 
-export function addPlant(scene, x, y, z, scale = 1, trailing = false) {
+export function addPlant(scene, x, y, z, scale = 1, trailing = false, { overhang = 0 } = {}) {
   const group = new THREE.Group(); group.position.set(x, y, z); group.scale.setScalar(scale); scene.add(group);
   const random = randomSource(Math.round((x + 10) * 813 + y * 711));
   function mesh(geometry, material) {
@@ -182,10 +182,12 @@ export function addPlant(scene, x, y, z, scale = 1, trailing = false) {
   }
   if (trailing) for (let v = 0; v < 5; v++) {
     const pts = [], length = .45 + random() * .75;
-    // Vines drape forward over the rim and shelf, away from the wall.
+    // Reach over the ledge early in the curve, then let the vines fall.
     for (let k = 0; k <= 12; k++) {
       const t = k / 12;
-      pts.push(new THREE.Vector3((v - 1.5) * .11 + Math.sin(t * 5 + v) * .09, .30 - t * length, .12 + Math.sin(t * Math.PI / 2) * .23));
+      const extraReach = Math.sin(Math.min(t * 3, 1) * Math.PI / 2) * overhang;
+      const reach = .12 + Math.sin(t * Math.PI / 2) * .23 + extraReach;
+      pts.push(new THREE.Vector3((v - 1.5) * .11 + Math.sin(t * 5 + v) * .09, .30 - t * length, reach));
     }
     stem(pts);
     for (let k = 1; k < pts.length; k++) {

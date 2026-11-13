@@ -1,23 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { createNormalTexture } from './surface-normals.js';
-
-const paperCanvas = document.createElement('canvas');
-paperCanvas.width = 64; paperCanvas.height = 512;
-const paperContext = paperCanvas.getContext('2d');
-paperContext.fillStyle = '#d9d1bd'; paperContext.fillRect(0, 0, 64, 512);
-for (let y = 0; y < 512; y += 3) {
-  paperContext.fillStyle = y % 9 === 0 ? '#b9b19e' : '#ccc4b1';
-  paperContext.fillRect(0, y, 64, 1);
-}
-const paperMap = new THREE.CanvasTexture(paperCanvas); paperMap.colorSpace = THREE.SRGBColorSpace;
-const pages = new THREE.MeshStandardMaterial({ map: paperMap, roughness: .92 });
-
-function part(group, size, position, material, radius = .003) {
-  const mesh = new THREE.Mesh(new RoundedBoxGeometry(...size, 3, radius), material);
-  mesh.position.set(...position); mesh.castShadow = mesh.receiveShadow = true;
-  group.add(mesh); return mesh;
-}
+import { createNormalTexture } from '../../surface-normals.js';
+import { roundedBox } from '../primitives.js';
 
 function createChairPart(geometry, materials) {
   // The path-tracer merger expects one material per mesh. Keep the original
@@ -50,56 +34,11 @@ function createChairPart(geometry, materials) {
   return part;
 }
 
-export function book(scene, { x, y, z, width = .12, height = .4, depth = .23, color, title, lean = 0, flat = false }) {
-  const group = new THREE.Group(); group.position.set(x, y, z); scene.add(group);
-  const cover = new THREE.MeshStandardMaterial({ color, roughness: .72 });
-  part(group, [width - .014, height - .018, depth - .016], [0, height / 2, -.004], pages);
-  for (const side of [-1, 1]) part(group, [.006, height, depth], [side * (width / 2 - .003), height / 2, 0], cover);
-  part(group, [width, height, .016], [0, height / 2, depth / 2 - .008], cover, .005);
-  // Subtle typography and publisher marks follow the actual spine.
-  const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 512;
-  const ctx = canvas.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0, 0, 128, 512);
-  ctx.fillStyle = '#cbbf9c'; ctx.font = '22px Georgia'; ctx.textAlign = 'center';
-  ctx.save(); ctx.translate(64, 240); ctx.rotate(-Math.PI / 2); ctx.fillText(title, 0, 0); ctx.restore();
-  ctx.fillRect(32, 440, 64, 2); ctx.font = '13px serif'; ctx.fillText('R / L', 64, 475);
-  const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
-  const label = new THREE.Mesh(new THREE.PlaneGeometry(width * .90, height * .96), new THREE.MeshStandardMaterial({ map, roughness: .8 }));
-  label.position.set(0, height / 2, depth / 2 + .0005); group.add(label);
-  group.rotation.z = lean;
-  if (flat) { group.rotation.z = -Math.PI / 2; group.position.y += width / 2; }
-  return group;
-}
-
-export function deskDetails(scene, wood, dark, metal) {
-  const group = new THREE.Group(); scene.add(group);
-  // A shallow drawer, inset face and recessed pull beneath the desktop.
-  part(group, [.85, .16, .48], [2.05, .73, -1.90], wood, .01);
-  part(group, [.82, .13, .018], [2.05, .73, -1.65], wood, .006);
-  part(group, [.18, .012, .025], [2.05, .755, -1.627], dark, .004);
-  // Pencil cup with visible wall thickness and a handful of individual pencils.
-  const cupMaterial = new THREE.MeshStandardMaterial({ color: '#39362d', metalness: .5, roughness: .38 });
-  const profile = [[.052,0],[.065,.006],[.065,.19],[.057,.19],[.057,.012],[0,.012]].map(v => new THREE.Vector2(...v));
-  const cup = new THREE.Mesh(new THREE.LatheGeometry(profile, 48), cupMaterial);
-  cup.position.set(2.68,.92,-2.25); cup.castShadow = cup.receiveShadow = true; group.add(cup);
-  for(let i=0;i<6;i++) {
-    const pencil = new THREE.Mesh(new THREE.CylinderGeometry(.004,.004,.27+i*.008,8), i%2?dark:wood);
-    pencil.position.set(2.68+Math.cos(i*2.4)*.032,1.10,-2.25+Math.sin(i*2.4)*.032);
-    pencil.rotation.z=(i-2.5)*.065; pencil.castShadow=true;group.add(pencil);
-  }
-  // Real hinge screws and paired linkage bars on the task lamp.
-  for(const [x,y] of [[3.04,1],[2.8,1.43],[3.05,1.76]]) {
-    const screw=new THREE.Mesh(new THREE.CylinderGeometry(.023,.023,.012,24),metal);
-    screw.rotation.x=Math.PI/2;screw.position.set(x,y,-2.047);group.add(screw);
-    part(group,[.023,.003,.002],[x,y,-2.039],dark,.001);
-  }
-  const wire=new THREE.CatmullRomCurve3([new THREE.Vector3(3.04,.97,-2.15),new THREE.Vector3(3.25,.93,-2.30),new THREE.Vector3(3.43,.86,-2.38),new THREE.Vector3(3.47,.32,-2.40),new THREE.Vector3(3.43,.035,-2.42)]);
-  const cable=new THREE.Mesh(new THREE.TubeGeometry(wire,48,.007,8,false),dark);cable.castShadow=true;group.add(cable);
-}
-
-export function readingChair(scene, wood) {
-  const chair = new THREE.Group(); chair.position.set(-2.15, 0, -1.88); chair.rotation.y = .20;
+export function createReadingChair() {
+  const chair = new THREE.Group();
+  chair.name = 'reading-chair';
   // Scale the model to the reference chair's 68 × 82 × 100 cm overall dimensions.
-  chair.scale.set(.80,.85,.85); scene.add(chair);
+  chair.scale.set(.80,.85,.85);
   const birchCanvas = document.createElement('canvas'); birchCanvas.width = 256; birchCanvas.height = 1024;
   const grain = birchCanvas.getContext('2d'); grain.fillStyle = '#dfd1ac'; grain.fillRect(0,0,256,1024);
   // Fine, low-contrast streaks suggest birch veneer without the dark oak of the room.
@@ -278,6 +217,6 @@ export function readingChair(scene, wood) {
     slat.position.set(0,slatY,p.z-tangent.y*.052);
     slat.castShadow=slat.receiveShadow=true; chair.add(slat);
   }
-  part(chair,[.71,.045,.035],[0,.35,.36],birch,.006); part(chair,[.70,.032,.035],[0,.055,-.40],birch,.006);
+  roundedBox(chair,[.71,.045,.035],[0,.35,.36],birch,.006); roundedBox(chair,[.70,.032,.035],[0,.055,-.40],birch,.006);
   return chair;
 }

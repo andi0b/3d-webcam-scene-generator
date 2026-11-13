@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { readingChair } from '../src/details.js';
-import { oakTexture } from '../src/realism.js';
+import { createReadingChair } from '../src/scene/models/reading-chair.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -10,8 +9,8 @@ renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene(); scene.background = new THREE.Color('#f8f8f6');
-const chair = readingChair(scene, new THREE.MeshStandardMaterial({map: oakTexture()}));
-chair.position.set(0,0,0); chair.rotation.set(0,0,0);
+const chair = createReadingChair();
+scene.add(chair);
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color:'#f8f8f6',roughness:1}));
 floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
 scene.add(new THREE.HemisphereLight('#ffffff','#b8ae9f',2));

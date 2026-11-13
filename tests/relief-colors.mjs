@@ -1,16 +1,13 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { PathTracingSceneGenerator } from 'three-gpu-pathtracer';
+import { createReliefMesh } from '../src/scene/models/mountain-relief.js';
 
-// Canvas-only textures are irrelevant to this CPU geometry regression.
-const context = new Proxy({}, {
-  get: (_, key) => key === 'createLinearGradient' ? () => ({addColorStop(){}}) : () => {},
-});
-globalThis.document = { createElement: () => ({getContext: () => context}) };
-const { addRelief } = await import('../src/realism.js');
 const scene = new THREE.Scene();
 scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial()));
-addRelief(scene, 1, 2, -2, 2, 1);
+const relief = createReliefMesh(2, 1);
+relief.position.set(1, 2, -2);
+scene.add(relief);
 scene.updateMatrixWorld(true);
 const { geometry, bvh } = new PathTracingSceneGenerator(scene).generate();
 assert.ok(bvh);

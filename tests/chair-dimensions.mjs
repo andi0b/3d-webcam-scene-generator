@@ -10,9 +10,9 @@ const context = {
   putImageData() {},
 };
 globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => context }) };
-const { readingChair } = await import('../src/details.js');
-const chair = readingChair(new THREE.Scene());
-chair.position.set(0, 0, 0); chair.rotation.set(0, 0, 0); chair.updateMatrixWorld(true);
+const { createReadingChair } = await import('../src/scene/models/reading-chair.js');
+const chair = createReadingChair();
+chair.updateMatrixWorld(true);
 const size = new THREE.Box3().setFromObject(chair).getSize(new THREE.Vector3());
 // IKEA's dimensions are 68 × 82 × 100 cm; allow a little for bevels and padding.
 for (const [name, actual, expected] of [['width',size.x,.68],['depth',size.z,.82],['height',size.y,1]]) {

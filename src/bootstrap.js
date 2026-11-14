@@ -31,7 +31,7 @@ updateAdvanced();
 
 document.querySelector('#ceiling-light').addEventListener('change', event => {
   document.querySelector('#ceiling-note').textContent = {
-    off: 'Ceiling light is off.', dimmed: 'Warm light · 2900 K',
+    off: 'Ceiling light is off.', dimmed: 'Warm light · 2700 K',
     low: 'Warm light · 2900 K', high: 'Neutral light · 4000 K',
   }[event.target.value];
 });

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 
-// Two color temperatures in sRGB, with separate output levels.
+// A 2700 K blackbody approximated in sRGB.
+const warm2700K = '#ffad59';
 const ceilingModes = {
   off: { color: '#ffffff', intensity: 0, bounce: 0, glow: 0 },
-  dimmed: { color: '#ffb367', intensity: 12, bounce: .18, glow: .8 },
+  dimmed: { color: warm2700K, intensity: 12, bounce: .18, glow: .8 },
   low: { color: '#ffb367', intensity: 19.2, bounce: .288, glow: 1.28 },
   high: { color: '#ffd3a6', intensity: 49.6, bounce: .64, glow: 3.84 },
 };
@@ -14,8 +15,8 @@ const sunPresets = {
 };
 const weatherModes = {
   sunny: { direct: 1, diffuse: 1 },
-  cloudy: { direct: 0, diffuse: .8 },
-  foggy: { direct: 0, diffuse: .4 },
+  cloudy: { direct: 0, diffuse: .55 },
+  foggy: { direct: 0, diffuse: .2 },
 };
 
 export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLamp, shelfLamp, shelfWash, backdrop }) {
@@ -36,6 +37,9 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
   fill.position.set(0, 2.4, 1.5);
   fill.lookAt(0, 1.7, -3);
   scene.add(sun, sun.target, fill);
+  shelfLamp.light.color.set(warm2700K);
+  shelfWash.color.set(warm2700K);
+  shelfLamp.globe.emissive.set(warm2700K);
   const areaLights = [...sideWindow.lights, clerestory.light, deskLamp.light, shelfLamp.light, shelfWash, fill];
 
   return {
@@ -88,7 +92,7 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
       }
       deskLamp.bulb.color.set(deskOn ? '#ffe0ad' : '#77716b');
       deskLamp.bulb.emissiveIntensity = deskOn ? 1.5 : 0;
-      shelfLamp.globe.color.set(shelfOn ? '#ffe1b0' : '#8b8174');
+      shelfLamp.globe.color.set(shelfOn ? warm2700K : '#8b8174');
       shelfLamp.globe.emissiveIntensity = shelfOn ? 1.5 : 0;
     },
   };

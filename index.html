@@ -58,9 +58,10 @@
       <div class="section camera">
         <div class="section-title"><span>04</span><h2>Find your angle</h2><button id="reset">Reset camera</button></div>
         <p class="camera-help">Match your webcam position and choose how much of the room to show.</p>
-        <label>Camera left / right <input id="horizontal" type="range" min="-1.5" max="1.5" step="0.01" value="0"></label>
-        <label>Camera height <input id="height" type="range" min="-0.45" max="0.45" step="0.01" value="0"></label>
-        <label>Framing <input id="zoom" type="range" min="36" max="58" step="1" value="48" aria-describedby="framing-range"></label>
+        <label>Camera left / right <input id="horizontal" type="range" min="-2.1" max="2.1" step="0.01" value="0"></label>
+        <label>Camera height <input id="height" type="range" min="-0.63" max="0.63" step="0.01" value="0"></label>
+        <label>Look up / down <input id="tilt" type="range" min="-35" max="35" step="1" value="0"></label>
+        <label>Framing <input id="zoom" type="range" min="22" max="58" step="1" value="48" aria-describedby="framing-range"></label>
         <div class="range-endpoints" id="framing-range"><span>Closer</span><span>Wider</span></div>
       </div>
       <details class="section advanced" id="advanced-settings">
@@ -68,7 +69,6 @@
         <div class="camera">
           <h3>Camera direction</h3>
           <label>Look left / right <input id="pan" type="range" min="-180" max="180" step="1" value="0"></label>
-          <label>Look up / down <input id="tilt" type="range" min="-70" max="70" step="1" value="0"></label>
         </div>
         <h3>Lighting overrides</h3>
         <div class="light-list">

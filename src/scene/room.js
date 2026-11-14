@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createLighting } from './lighting.js';
 import { material } from './primitives.js';
-import { applySurfaceTexture, oakNormalMap, oakTexture } from './surface-textures.js';
+import { createTextureLoader } from './surface-textures.js';
 import { createBackdrop } from './models/backdrop.js';
 import { createCeilingFixture } from './models/ceiling-fixture.js';
 import { createClerestory } from './models/clerestory.js';
@@ -17,23 +17,26 @@ import { createShelfLamp } from './models/shelf-lamp.js';
 import { createShelves } from './models/shelves.js';
 import { createSideWindow } from './models/side-window.js';
 
-export function createRoom(assets, anisotropy) {
+export function createRoom(assets, anisotropy, onTextureChanged) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#c4aa91');
-  const textureLoader = new THREE.TextureLoader();
-  const loadSurface = (finish, filename, normalScale) => {
-    applySurfaceTexture(finish, textureLoader, `${assets}${filename}`, anisotropy, normalScale);
-  };
-  function loadImage(filename) {
-    const texture = textureLoader.load(`${assets}${filename}`);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = anisotropy;
+  const loadTexture = createTextureLoader(assets, anisotropy, onTextureChanged);
+  const roomTextures = [];
+  const loadRoomTexture = (filename, options) => {
+    const { texture, ready } = loadTexture(filename, options);
+    roomTextures.push(ready);
     return texture;
-  }
+  };
+  const loadSurface = (finish, filename, normalScale, fallback) => {
+    finish.map = loadRoomTexture(filename, { fallback });
+    finish.normalMap = loadRoomTexture(filename.replace(/\.[^.]+$/, '-normal.png'), { normal: true });
+    finish.normalMap.wrapS = finish.normalMap.wrapT = THREE.RepeatWrapping;
+    finish.normalScale.setScalar(normalScale);
+  };
   const wood = material('#ffffff', .42);
-  wood.map = oakTexture();
-  wood.normalMap = oakNormalMap(wood.map);
-  wood.map.anisotropy = wood.normalMap.anisotropy = anisotropy;
+  wood.map = loadRoomTexture('furniture-oak.png', { fallback: [174, 140, 99] });
+  wood.normalMap = loadRoomTexture('furniture-oak-normal.png', { normal: true });
+  wood.map.wrapS = wood.map.wrapT = wood.normalMap.wrapS = wood.normalMap.wrapT = THREE.RepeatWrapping;
   const dark = material('#34322c');
 
   // The shell owns the openings. The frames and panes are separate inserts.
@@ -53,7 +56,7 @@ export function createRoom(assets, anisotropy) {
   scene.add(sideWindow.group, clerestory.group);
 
   // Leave enough backdrop coverage for the camera's range of motion.
-  const backdrop = createBackdrop(loadImage);
+  const backdrop = createBackdrop(loadTexture, onTextureChanged);
   backdrop.group.position.set(-5.85, 2.10, -3.24);
   const branches = createOutdoorBranches();
   branches.position.x = -4.42;
@@ -64,7 +67,7 @@ export function createRoom(assets, anisotropy) {
   const shelfLamp = createShelfLamp(dark);
   shelfLamp.group.position.set(.66, 2.82, .10);
   shelves.group.add(shelfLamp.group);
-  const relief = createMountainRelief(wood, dark, loadImage);
+  const relief = createMountainRelief(wood, dark, filename => loadRoomTexture(filename, { fallback: [91, 82, 73] }));
   relief.position.set(1.40, 1.99, -2.855);
   scene.add(shelves.group, relief);
 
@@ -88,5 +91,20 @@ export function createRoom(assets, anisotropy) {
   const lighting = createLighting(scene, {
     sideWindow, clerestory, ceiling, deskLamp, shelfLamp, shelfWash: shelves.wash, backdrop,
   });
-  return { scene, lighting, backdrop };
+  async function ready() {
+    let timer;
+    try {
+      const errors = await Promise.race([
+        Promise.all([...roomTextures, backdrop.ready]),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Scene textures did not finish loading.')), 15000);
+        }),
+      ]);
+      const error = errors.find(Boolean);
+      if (error) throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return { scene, lighting, backdrop, ready };
 }

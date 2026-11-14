@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prepare Roomlight textures</title>
+</head>
+<body>
+  <h1>Prepare Roomlight textures</h1>
+  <form id="prepare">
+    <label>Output
+      <select id="kind">
+        <option value="normal">Surface normal map</option>
+        <option value="backdrop">WebP backdrop</option>
+        <option value="furniture">Procedural furniture oak</option>
+      </select>
+    </label>
+    <label id="source">Source image <input id="image" type="file" accept="image/*" required></label>
+    <button>Prepare</button>
+  </form>
+  <p id="status" role="status"></p>
+  <ul id="outputs"></ul>
+  <script type="module" src="./prepare-textures.js"></script>
+</body>
+</html>

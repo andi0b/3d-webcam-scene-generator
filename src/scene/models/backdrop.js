@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { box } from '../primitives.js';
 
-export function createBackdrop(loadImage) {
+export function createBackdrop(loadTexture, onTextureChanged) {
   const group = new THREE.Group();
   group.name = 'window-backdrop';
   const material = new THREE.MeshStandardMaterial({ color: '#000000', emissive: '#ffffff', emissiveIntensity: 1, roughness: 1 });
@@ -10,17 +10,25 @@ export function createBackdrop(loadImage) {
   // The photograph remains visible through the window and lets traced sunlight pass.
   material.castShadow = false;
   backdrop.visibleToShadowRays = false;
-  const images = Object.fromEntries(['city', 'forest', 'mountains'].map(name => [name, loadImage(`${name}.png`)]));
+  const images = new Map();
+  let active;
 
   return {
     group,
     material,
+    get ready() { return active?.ready; },
     update(view, mood) {
-      const image = images[view];
-      if (material.emissiveMap !== image) {
-        material.emissiveMap = image;
-        material.needsUpdate = true;
+      if (!images.has(view)) {
+        const image = loadTexture(`${view}.webp`, {
+          fallback: [153, 167, 174],
+          onChange: error => {
+            if (image === active) onTextureChanged(error);
+          },
+        });
+        images.set(view, image);
       }
+      active = images.get(view);
+      material.emissiveMap = active.texture;
       material.emissive.set(mood === 'night' ? '#424c6a' : mood === 'golden' ? '#ffd5ad' : '#ffffff');
     },
   };

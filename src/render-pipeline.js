@@ -5,78 +5,191 @@ import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 
-export function createPipeline(renderer, scene, camera, areaLights) {
-  const previewReflections = {
-    target: new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType }),
-    dirty: true,
-    ready: false,
-  };
-  const exportReflections = {
-    target: new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType }),
-    dirty: true,
-    ready: false,
-  };
-  const reflectionCamera = new THREE.CubeCamera(.1, camera.far, previewReflections.target);
+const reflectionDelay = 160;
+
+export function createPipeline(renderer, scene, camera, rasterLights) {
+  const previewCube = new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType });
+  const exportCube = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
+  const reflectionCamera = new THREE.CubeCamera(.1, camera.far, previewCube);
   reflectionCamera.position.set(-.5, 1.35, -1.35);
+  reflectionCamera.coordinateSystem = renderer.coordinateSystem;
+  reflectionCamera.updateCoordinateSystem();
+  reflectionCamera.updateMatrixWorld();
+
   const captureBackground = new THREE.Color(0x000000);
-  let reflectionRefreshAt = 0;
-  const previewReflectionsDue = () => previewReflections.dirty && performance.now() >= reflectionRefreshAt;
-  // Offscreen MSAA requires a sample count supported by both attachments.
-  const gl = renderer.getContext();
-  const colorSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES) ?? [];
-  const depthSamples = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) ?? [];
-  const samples = Math.max(0, ...colorSamples.filter(count => count <= 4 && depthSamples.includes(count)));
-  const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples });
-  const composer = new EffectComposer(renderer, target);
+  let pmrem = new THREE.PMREMGenerator(renderer);
+  let previewEnvironment, exportEnvironment;
+  let previewVersion = 0, publishedVersion = -1, exportVersion = -1;
+  let face = 0, reflectionRefreshAt = Infinity;
+  let preparingEnvironment = false, environmentReady = false, contextGeneration = 0;
+
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
+  let pixelRatio = renderer.getPixelRatio();
+  let exportSamples;
   composer.addPass(new RenderPass(scene, camera));
-  const ao = new SSAOPass(scene, camera, 512, 512, 32);
+  const ao = new SSAOPass(scene, camera, 1, 1, 32);
   ao.kernelRadius = .065;
   ao.minDistance = .00015;
   ao.maxDistance = .003;
+  ao.enabled = false;
   composer.addPass(ao);
   composer.addPass(new OutputPass());
-  composer.addPass(new SMAAPass());
-  return {
-    get guides(){return {normal:ao.normalRenderTarget.texture,depth:ao.normalRenderTarget.depthTexture,color:composer.readBuffer.texture};},
-    get previewReflectionsDue() { return previewReflectionsDue(); },
-    invalidateReflections({ immediate = false } = {}) {
-      previewReflections.dirty = exportReflections.dirty = true;
-      reflectionRefreshAt = immediate ? 0 : performance.now() + 160;
-    },
-    resize(w, h, ratio) { composer.setPixelRatio(ratio); composer.setSize(w, h); },
-    render({ forExport = false } = {}) {
-      const { environment, environmentIntensity } = scene;
-      const reflections = forExport ? exportReflections : previewReflections;
-      // Zero-intensity area lights preserve the preview shader layout between toggles.
-      const disabledLights = forExport ? [] : areaLights.filter(light => !light.visible);
-      for (const light of disabledLights) light.visible = true;
-      try {
-        if (reflections.dirty && (forExport || previewReflectionsDue())) {
-          const background = scene.background;
-          // Capture direct lighting once. Three.js filters the cubemap for each material's roughness.
-          scene.environment = null;
-          scene.background = captureBackground;
-          try {
-            reflectionCamera.renderTarget = reflections.target;
-            reflectionCamera.update(renderer, scene);
-            reflections.dirty = false;
-            reflections.ready = true;
-          } finally {
-            scene.background = background;
-          }
-        }
-        scene.environment = reflections.ready ? reflections.target.texture : null;
-        // Avoid showing light from the previous settings while the preview capture is pending.
-        scene.environmentIntensity = reflections.dirty ? 0 : .75;
-        // SSAO caches projection uniforms; keep them current for the FOV slider.
-        ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
-        ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
-        composer.render();
-      } finally {
-        for (const light of disabledLights) light.visible = false;
-        scene.environment = environment;
-        scene.environmentIntensity = environmentIntensity;
+  const smaa = new SMAAPass();
+  smaa.enabled = false;
+  composer.addPass(smaa);
+
+  function withRasterLights(render) {
+    const disabled = rasterLights.filter(light => !light.visible);
+    for (const light of disabled) light.visible = true;
+    try {
+      return render();
+    } finally {
+      for (const light of disabled) light.visible = false;
+    }
+  }
+
+  function withSceneEnvironment(environment, intensity, render) {
+    const previous = scene.environment;
+    const previousIntensity = scene.environmentIntensity;
+    scene.environment = environment;
+    scene.environmentIntensity = intensity;
+    try {
+      return render();
+    } finally {
+      scene.environment = previous;
+      scene.environmentIntensity = previousIntensity;
+    }
+  }
+
+  function capture(render) {
+    const background = scene.background;
+    scene.background = captureBackground;
+    try {
+      return withRasterLights(() => withSceneEnvironment(null, 0, render));
+    } finally {
+      scene.background = background;
+    }
+  }
+
+  function compile(environment = null) {
+    const previous = renderer.getRenderTarget();
+    renderer.setRenderTarget(composer.readBuffer);
+    try {
+      return withRasterLights(() => withSceneEnvironment(environment, 0, () => renderer.compileAsync(scene, camera)));
+    } finally {
+      renderer.setRenderTarget(previous);
+    }
+  }
+
+  function captureFace() {
+    const previous = renderer.getRenderTarget();
+    const previousFace = renderer.getActiveCubeFace();
+    const previousMip = renderer.getActiveMipmapLevel();
+    try {
+      renderer.setRenderTarget(previewCube, face);
+      capture(() => renderer.render(scene, reflectionCamera.children[face]));
+      face++;
+    } finally {
+      renderer.setRenderTarget(previous, previousFace, previousMip);
+    }
+  }
+
+  function filterPreview() {
+    const version = previewVersion;
+    previewEnvironment = pmrem.fromCubemap(previewCube.texture, previewEnvironment);
+    if (!environmentReady) {
+      const generation = contextGeneration;
+      preparingEnvironment = true;
+      compile(previewEnvironment.texture).then(() => {
+        if (generation !== contextGeneration) return;
+        environmentReady = true;
+        preparingEnvironment = false;
+        if (version === previewVersion) publishedVersion = version;
+      }).catch(error => {
+        if (generation !== contextGeneration) return;
+        preparingEnvironment = false;
+        reflectionRefreshAt = Infinity;
+        console.warn('Could not prepare preview reflections', error);
+      });
+      return;
+    }
+    publishedVersion = version;
+  }
+
+  function captureExport() {
+    capture(() => {
+      reflectionCamera.renderTarget = exportCube;
+      reflectionCamera.update(renderer, scene);
+    });
+    exportEnvironment = pmrem.fromCubemap(exportCube.texture, exportEnvironment);
+    exportVersion = previewVersion;
+  }
+
+  function render({ forExport = false } = {}) {
+    if (forExport) {
+      if (exportSamples === undefined) {
+        const gl = renderer.getContext();
+        const color = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES) ?? [];
+        const depth = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) ?? [];
+        exportSamples = Math.max(0, ...color.filter(count => count <= 4 && depth.includes(count)));
       }
+      if (exportVersion !== previewVersion) captureExport();
+    }
+    const environment = forExport ? exportEnvironment : environmentReady ? previewEnvironment : null;
+    const intensity = forExport || publishedVersion === previewVersion ? .75 : 0;
+    const samples = forExport ? exportSamples : 0;
+    for (const target of [composer.readBuffer, composer.writeBuffer]) {
+      if (target.samples === samples) continue;
+      target.samples = samples;
+      target.dispose();
+    }
+    withRasterLights(() => withSceneEnvironment(environment?.texture ?? null, intensity, () => {
+      ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
+      ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
+      composer.render();
+    }));
+  }
+
+  return {
+    get guides() {
+      return { normal: ao.normalRenderTarget.texture, depth: ao.normalRenderTarget.depthTexture, color: composer.readBuffer.texture };
     },
+    get reflectionVersion() { return publishedVersion; },
+    compile,
+    invalidateReflections() {
+      previewVersion++;
+      face = 0;
+      reflectionRefreshAt = performance.now() + reflectionDelay;
+    },
+    advanceReflections() {
+      if (publishedVersion === previewVersion || preparingEnvironment || performance.now() < reflectionRefreshAt) return false;
+      if (face < reflectionCamera.children.length) captureFace();
+      else filterPreview();
+      return true;
+    },
+    resetReflections() {
+      contextGeneration++;
+      preparingEnvironment = environmentReady = false;
+      previewEnvironment?.dispose();
+      exportEnvironment?.dispose();
+      previewEnvironment = exportEnvironment = null;
+      previewCube.dispose();
+      exportCube.dispose();
+      pmrem.dispose();
+      pmrem = new THREE.PMREMGenerator(renderer);
+      this.invalidateReflections();
+    },
+    setEffects({ ambientOcclusion, antialiasing }) {
+      ao.enabled = ambientOcclusion;
+      smaa.enabled = antialiasing;
+    },
+    resize(w, h, ratio) {
+      if (pixelRatio !== ratio) {
+        pixelRatio = ratio;
+        composer.setPixelRatio(ratio);
+      }
+      composer.setSize(w, h);
+    },
+    render,
   };
 }

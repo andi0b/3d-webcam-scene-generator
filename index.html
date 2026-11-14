@@ -1,2 +1,112 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Roomlight Studio</title></head><body><div id="app"></div><script type="module" src="/src/main.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roomlight Studio</title>
+  <link rel="stylesheet" href="/src/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=DM+Serif+Display:ital@0;1&amp;display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <script type="module" src="/src/bootstrap.js"></script>
+</head>
+<body>
+  <main>
+    <aside>
+      <h1 class="brand"><span class="brand-icon" aria-hidden="true">◧</span>roomlight</h1>
+      <div class="section">
+        <div class="section-title"><span>01</span><h2>Outside your window</h2></div>
+        <div class="choices" id="views">
+          <button class="choice active" data-view="city"><i>▥</i><b>City</b><small>Buildings &amp; trees</small></button>
+          <button class="choice" data-view="forest"><i>♧</i><b>Forest</b><small>Quiet greenery</small></button>
+          <button class="choice" data-view="mountains"><i>⌁</i><b>Mountains</b><small>Room to breathe</small></button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-title"><span>02</span><h2>Set the mood</h2></div>
+        <div class="presets">
+          <button data-preset="day" class="active">☀ &nbsp;Daylight</button>
+          <button data-preset="golden">◒ &nbsp;Golden hour</button>
+          <button data-preset="night">☾ &nbsp;After hours</button>
+        </div>
+        <div class="light-list">
+          <label><b>Ceiling light</b>
+            <select id="ceiling-light">
+              <option value="off">Off</option>
+              <option value="dimmed">Dimmed · 2900 K</option>
+              <option value="low" selected>Low · 2900 K</option>
+              <option value="high">High · 4000 K</option>
+            </select>
+          </label>
+          <label><span><b>Outside light</b><small>Sunlight through the window</small></span><input type="checkbox" id="outside" checked><i></i></label>
+          <label><b>Weather</b>
+            <select id="weather">
+              <option value="sunny" selected>Sunny</option>
+              <option value="cloudy">Cloudy</option>
+              <option value="foggy">Foggy</option>
+            </select>
+          </label>
+          <label><span><b>Desk lamp</b><small>A warm pool of light</small></span><input type="checkbox" id="desk" checked><i></i></label>
+          <label><span><b>Shelf light</b><small>A little extra glow</small></span><input type="checkbox" id="shelf" checked><i></i></label>
+          <label><span><b>Off-camera fill</b><small>Soft light from behind you</small></span><input type="checkbox" id="fill" checked><i></i></label>
+        </div>
+      </div>
+      <div class="section camera">
+        <div class="section-title"><span>03</span><h2>Find your angle</h2><button id="reset">Reset</button></div>
+        <p class="camera-help">Match your real webcam: move the camera, then adjust where it points.</p>
+        <label>Camera left / right <input id="horizontal" type="range" min="-1.5" max="1.5" step="0.01" value="0"></label>
+        <label>Camera height <input id="height" type="range" min="-0.45" max="0.45" step="0.01" value="0"></label>
+        <label>Look left / right <input id="pan" type="range" min="-180" max="180" step="1" value="0"></label>
+        <label>Look up / down <input id="tilt" type="range" min="-70" max="70" step="1" value="0"></label>
+        <label>Field of view <input id="zoom" type="range" min="36" max="58" step="1" value="48"></label>
+        <label class="guide-toggle"><span>Show person guide <small>For framing only · excluded from export</small></span><input type="checkbox" id="guide" checked></label>
+      </div>
+      <div class="aside-footer">MADE FOR YOUR NEXT GOOD CONVERSATION <span>✳</span></div>
+    </aside>
+    <section class="workspace">
+      <div class="workspace-top">
+        <div><div class="eyebrow">YOUR SPACE, YOUR WAY</div><h2>The preview <span>✳</span></h2></div>
+        <div class="live"><i></i> LIVE 3D PREVIEW</div>
+      </div>
+      <div class="preview-wrap">
+        <div class="canvas-wrap">
+          <div id="viewport" aria-busy="true"></div>
+          <div id="person-guide" class="hidden" aria-hidden="true"><div class="guide-head"></div><div class="guide-body"></div><span>YOUR POSITION</span></div>
+          <div id="preview-loading" role="status">Loading 3D preview…</div>
+        </div>
+        <div class="preview-label"><span>01 / THE HOME OFFICE</span><span>16:9 &nbsp; · &nbsp; 3D SCENE</span></div>
+      </div>
+      <div class="render-quality">
+        <div role="group" aria-label="Render quality">
+          <button id="quality-fast" aria-pressed="true">Fast preview</button>
+          <button id="quality-real" aria-pressed="false" disabled>Realistic lighting</button>
+        </div>
+        <label class="export-quality">Export quality
+          <select id="export-quality">
+            <option value="quick">Quick · recommended</option>
+            <option value="detailed">Detailed</option>
+            <option value="maximum">Maximum · slow</option>
+          </select>
+        </label>
+        <label class="export-quality">Export resolution
+          <select id="export-resolution">
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+          </select>
+        </label>
+        <span id="render-status" role="status"></span>
+        <span id="export-status" role="status"></span>
+        <button id="cancel-render" hidden>Cancel export</button>
+      </div>
+      <div class="workspace-bottom">
+        <div><strong>Looking good?</strong><p>Export your scene and add it as a virtual background in your meeting app.</p></div>
+        <button id="export" disabled>Export background <span>↗</span></button>
+      </div>
+      <div class="tip"><span>✧</span><p><strong>A little tip</strong> &nbsp; Leave some breathing room in the center for you. Your exported image won’t include the preview controls.</p></div>
+      <div class="workspace-foot"><span>ROOMLIGHT STUDIO &nbsp; / &nbsp; V 0.1</span><span>DESIGNED FOR REAL CONVERSATIONS</span></div>
+    </section>
+  </main>
+  <noscript>Enable JavaScript to render the 3D preview.</noscript>
+</body>
+</html>

@@ -5,7 +5,7 @@ export function createAshFloor(loadSurface) {
   const group = new THREE.Group();
   group.name = 'ash-floor';
   const material = new THREE.MeshStandardMaterial({ roughness: .62 });
-  loadSurface(material, 'white-ash.jpg', .5);
+  loadSurface(material, 'white-ash.jpg', .5, [185, 167, 143]);
   const random = randomSource(8619);
   const grainWidth = .10;
   const margin = .012;

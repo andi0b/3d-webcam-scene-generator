@@ -36,14 +36,14 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
   const areaLights = [...sideWindow.lights, clerestory.light, deskLamp.light, shelfLamp.light, shelfWash, fill];
 
   return {
-    areaLights,
+    rasterLights: [ceiling.light, sun, ...areaLights],
     setShadowResolution(exporting) {
       sun.shadow.mapSize.setScalar(exporting ? 3072 : 768);
       ceiling.light.shadow.mapSize.setScalar(exporting ? 1024 : 256);
       sun.shadow.needsUpdate = ceiling.light.shadow.needsUpdate = true;
     },
     get shadowsNeedUpdate() {
-      return (sun.visible && sun.shadow.needsUpdate) || (ceiling.light.visible && ceiling.light.shadow.needsUpdate);
+      return sun.shadow.needsUpdate || ceiling.light.shadow.needsUpdate;
     },
     update({ mood, weather, ceilingMode, outside, deskOn, shelfOn, fillOn }) {
       const isNight = mood === 'night';

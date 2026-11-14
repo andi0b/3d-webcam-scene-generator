@@ -31,8 +31,8 @@ export function createSideWindow(loadSurface) {
   const sillWood = material('#f1eeeb', .46);
   const hardware = material('#4b4b46', .32, .72);
   const glazingSeal = material('#46382e', .82);
-  loadSurface(sashWood, 'oak.png', .32);
-  loadSurface(sillWood, 'oak-sill.png', .35);
+  loadSurface(sashWood, 'oak.png', .32, [155, 122, 86]);
+  loadSurface(sillWood, 'oak-sill.png', .35, [169, 139, 103]);
 
   function addFrame({ x, depth, bottom, top, minZ, maxZ, profile, bevel }) {
     const centerY = (bottom + top) / 2;

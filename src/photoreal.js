@@ -13,12 +13,13 @@ export const EXPORT_PRESETS = {
 
 const exportCancelled = Symbol('export cancelled');
 
-export function createPhotoreal(renderer, scene, camera, preview, status, exportStatus) {
+export function createPhotoreal(renderer, scene, camera, preview, status, exportStatus, texturesReady) {
   const gl = renderer.getContext();
   let tracer, denoiser, oidnPreview, library, starting;
   let webGpuUnavailable = false;
   let enabled = false, failed = false, exporting = false, cancelled = false;
-  let pending = true, sceneChanged = true, changed = performance.now();
+  let cancelPreparation;
+  let pending = true, materialsChanged = true, lightsChanged = true, changed = performance.now();
   let contextGeneration = 0;
 
   function report(text) {
@@ -41,28 +42,8 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
 
   async function prepareScene(checkActive) {
     checkActive();
-
-    // Wait for the active textures before building either tracer's texture atlas.
-    const maps = new Set();
-    scene.traverse(object => {
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      for (const material of materials) {
-        if (!material) continue;
-        for (const value of Object.values(material)) {
-          if (value?.isTexture) maps.add(value);
-        }
-      }
-    });
-    const textures = [...maps];
-    const deadline = performance.now() + 15000;
-    while (textures.some(texture => !texture.image || texture.image.complete === false)) {
-      if (performance.now() > deadline) throw new Error('Scene textures did not finish loading.');
-      await nextFrame();
-      checkActive();
-    }
-    if (textures.some(({ image }) => image.naturalWidth === 0)) {
-      throw new Error('A scene texture failed to load.');
-    }
+    await texturesReady();
+    checkActive();
   }
 
   function releaseTracer() {
@@ -92,7 +73,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
               return;
             }
             oidnPreview = candidate;
-            pending = sceneChanged = true;
+            pending = materialsChanged = lightsChanged = true;
             return;
           } catch (error) {
             checkPreviewContext(generation);
@@ -115,7 +96,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
         checkPreviewContext(generation);
         denoiser = createGuidedDenoiser(renderer, preview, camera);
         pending = true;
-        sceneChanged = false;
+        materialsChanged = lightsChanged = false;
       } catch (error) {
         if (generation === contextGeneration) releaseTracer();
         throw error;
@@ -136,12 +117,9 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
   function sync() {
     scene.updateMatrixWorld(true);
     tracer.setCamera(camera);
-    if (sceneChanged) {
-      tracer.updateMaterials();
-      tracer.updateLights();
-      tracer.updateEnvironment();
-      sceneChanged = false;
-    }
+    if (materialsChanged) tracer.updateMaterials();
+    if (lightsChanged) tracer.updateLights();
+    materialsChanged = lightsChanged = false;
     pending = false;
   }
 
@@ -163,7 +141,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
 
   renderer.domElement.addEventListener('webglcontextrestored', () => {
     pending = true;
-    sceneChanged = true;
+    materialsChanged = lightsChanged = true;
     failed = false;
     webGpuUnavailable = false;
     changed = performance.now();
@@ -173,7 +151,10 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
   return {
     get exporting() { return exporting; },
     get enabled() { return enabled; },
-    cancel() { cancelled = true; },
+    cancel() {
+      cancelled = true;
+      cancelPreparation?.(exportCancelled);
+    },
     setEnabled(value) {
       enabled = value;
       failed = false;
@@ -186,7 +167,8 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
       oidnPreview?.hide();
       if (enabled && oidnPreview && !exporting) report('Updating realistic preview…');
       pending = true;
-      sceneChanged ||= kind !== 'camera';
+      materialsChanged ||= kind === 'scene';
+      lightsChanged ||= kind !== 'camera';
       changed = performance.now();
     },
     frame() {
@@ -199,8 +181,8 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
       try {
         if (oidnPreview) {
           if (pending) {
-            oidnPreview.sync(sceneChanged);
-            pending = sceneChanged = false;
+            oidnPreview.sync({ materialsChanged, lightsChanged });
+            pending = materialsChanged = lightsChanged = false;
           }
           oidnPreview.frame();
           return;
@@ -228,7 +210,11 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
       try {
         oidnPreview?.pause();
         reportExport('Preparing export…');
-        await prepareScene(checkCancelled);
+        await Promise.race([
+          prepareScene(checkCancelled),
+          new Promise((_, reject) => { cancelPreparation = reject; }),
+        ]);
+        cancelPreparation = null;
         checkCancelled();
         const settings = EXPORT_PRESETS[preset] ?? EXPORT_PRESETS.quick;
         const dimensions = EXPORT_SIZES[resolution] ?? EXPORT_SIZES['1080'];
@@ -248,6 +234,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
         if (error !== exportCancelled) throw error;
         reportExport('Export cancelled');
       } finally {
+        cancelPreparation = null;
         exporting = false;
         pending = true;
         changed = performance.now();

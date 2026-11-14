@@ -29,38 +29,53 @@
           <button data-preset="golden">◒ &nbsp;Golden hour</button>
           <button data-preset="night">☾ &nbsp;After hours</button>
         </div>
+        <fieldset class="option-field" id="weather" aria-describedby="weather-note">
+          <legend>Weather</legend>
+          <div class="select-buttons">
+            <label><input type="radio" name="weather" value="sunny" checked><span>Sunny</span></label>
+            <label><input type="radio" name="weather" value="cloudy"><span>Cloudy</span></label>
+            <label><input type="radio" name="weather" value="foggy"><span>Foggy</span></label>
+          </div>
+          <p class="control-note" id="weather-note" hidden>Weather is paused while Outside light is off in Advanced settings.</p>
+        </fieldset>
+      </div>
+      <div class="section">
+        <div class="section-title"><span>03</span><h2>Room lighting</h2></div>
+        <fieldset class="option-field" id="ceiling-light" aria-describedby="ceiling-note">
+          <legend class="option-heading"><span>Ceiling light</span><span class="control-note" id="ceiling-note">Warm light · 2900 K</span></legend>
+          <div class="select-buttons">
+            <label><input type="radio" name="ceiling" value="off"><span>Off</span></label>
+            <label><input type="radio" name="ceiling" value="dimmed"><span>Dimmed</span></label>
+            <label><input type="radio" name="ceiling" value="low" checked><span>Low</span></label>
+            <label><input type="radio" name="ceiling" value="high"><span>High</span></label>
+          </div>
+        </fieldset>
         <div class="light-list">
-          <label><b>Ceiling light</b>
-            <select id="ceiling-light">
-              <option value="off">Off</option>
-              <option value="dimmed">Dimmed · 2900 K</option>
-              <option value="low" selected>Low · 2900 K</option>
-              <option value="high">High · 4000 K</option>
-            </select>
-          </label>
-          <label><span><b>Outside light</b><small>Sunlight through the window</small></span><input type="checkbox" id="outside" checked><i></i></label>
-          <label><b>Weather</b>
-            <select id="weather">
-              <option value="sunny" selected>Sunny</option>
-              <option value="cloudy">Cloudy</option>
-              <option value="foggy">Foggy</option>
-            </select>
-          </label>
           <label><span><b>Desk lamp</b><small>A warm pool of light</small></span><input type="checkbox" id="desk" checked><i></i></label>
           <label><span><b>Shelf light</b><small>A little extra glow</small></span><input type="checkbox" id="shelf" checked><i></i></label>
-          <label><span><b>Off-camera fill</b><small>Soft light from behind you</small></span><input type="checkbox" id="fill" checked><i></i></label>
         </div>
       </div>
       <div class="section camera">
-        <div class="section-title"><span>03</span><h2>Find your angle</h2><button id="reset">Reset</button></div>
-        <p class="camera-help">Match your real webcam: move the camera, then adjust where it points.</p>
+        <div class="section-title"><span>04</span><h2>Find your angle</h2><button id="reset">Reset camera</button></div>
+        <p class="camera-help">Match your webcam position and choose how much of the room to show.</p>
         <label>Camera left / right <input id="horizontal" type="range" min="-1.5" max="1.5" step="0.01" value="0"></label>
         <label>Camera height <input id="height" type="range" min="-0.45" max="0.45" step="0.01" value="0"></label>
-        <label>Look left / right <input id="pan" type="range" min="-180" max="180" step="1" value="0"></label>
-        <label>Look up / down <input id="tilt" type="range" min="-70" max="70" step="1" value="0"></label>
-        <label>Field of view <input id="zoom" type="range" min="36" max="58" step="1" value="48"></label>
-        <label class="guide-toggle"><span>Show person guide <small>For framing only · excluded from export</small></span><input type="checkbox" id="guide" checked></label>
+        <label>Framing <input id="zoom" type="range" min="36" max="58" step="1" value="48" aria-describedby="framing-range"></label>
+        <div class="range-endpoints" id="framing-range"><span>Closer</span><span>Wider</span></div>
       </div>
+      <details class="section advanced" id="advanced-settings">
+        <summary>Advanced settings <span id="advanced-changed" hidden>Modified</span></summary>
+        <div class="camera">
+          <h3>Camera direction</h3>
+          <label>Look left / right <input id="pan" type="range" min="-180" max="180" step="1" value="0"></label>
+          <label>Look up / down <input id="tilt" type="range" min="-70" max="70" step="1" value="0"></label>
+        </div>
+        <h3>Lighting overrides</h3>
+        <div class="light-list">
+          <label><span><b>Outside light</b><small>Light through the window</small></span><input type="checkbox" id="outside" checked><i aria-hidden="true"></i></label>
+          <label><span><b>Off-camera fill</b><small>Soft light from behind you</small></span><input type="checkbox" id="fill" checked><i aria-hidden="true"></i></label>
+        </div>
+      </details>
       <div class="aside-footer">MADE FOR YOUR NEXT GOOD CONVERSATION <span>✳</span></div>
     </aside>
     <section class="workspace">
@@ -74,36 +89,53 @@
           <div id="person-guide" class="hidden" aria-hidden="true"><div class="guide-head"></div><div class="guide-body"></div><span>YOUR POSITION</span></div>
           <div id="preview-loading" role="status">Loading 3D preview…</div>
         </div>
-        <div class="preview-label"><span>01 / THE HOME OFFICE</span><span>16:9 &nbsp; · &nbsp; 3D SCENE</span></div>
       </div>
-      <div class="render-quality">
-        <div role="group" aria-label="Render quality">
-          <button id="quality-fast" aria-pressed="true">Fast preview</button>
-          <button id="quality-real" aria-pressed="false" disabled>Realistic lighting</button>
+      <div class="preview-toolbar">
+        <div class="render-quality">
+          <span>Preview</span>
+          <div role="group" aria-label="Preview quality">
+            <button id="quality-fast" aria-pressed="true">Fast</button>
+            <button id="quality-real" aria-pressed="false" disabled>Realistic</button>
+          </div>
         </div>
-        <label class="export-quality">Export quality
-          <select id="export-quality">
-            <option value="quick">Quick · recommended</option>
-            <option value="detailed">Detailed</option>
-            <option value="maximum">Maximum · slow</option>
-          </select>
-        </label>
-        <label class="export-quality">Export resolution
-          <select id="export-resolution">
-            <option value="1080">1080p</option>
-            <option value="720">720p</option>
-            <option value="480">480p</option>
-          </select>
-        </label>
         <span id="render-status" role="status"></span>
-        <span id="export-status" role="status"></span>
-        <button id="cancel-render" hidden>Cancel export</button>
+        <label class="guide-toggle"><input type="checkbox" id="guide" checked><span>Show person guide <small>Excluded from export</small></span></label>
       </div>
-      <div class="workspace-bottom">
-        <div><strong>Looking good?</strong><p>Export a PNG with realistic lighting for your meeting app. Requires WebGPU.</p></div>
-        <button id="export" disabled>Export background <span>↗</span></button>
-      </div>
-      <div class="tip"><span>✧</span><p><strong>A little tip</strong> &nbsp; Leave some breathing room in the center for you. Your exported image won’t include the preview controls.</p></div>
+      <section class="export-card" aria-labelledby="export-title">
+        <div class="export-heading"><h2 id="export-title">Export background</h2><span>PNG · 16:9</span></div>
+        <div class="export-options">
+          <fieldset class="option-field" id="export-quality" aria-describedby="quality-note">
+            <legend>Quality</legend>
+            <div class="select-buttons">
+              <label><input type="radio" name="export-quality" value="quick" checked><span>Quick</span></label>
+              <label><input type="radio" name="export-quality" value="detailed"><span>Detailed</span></label>
+              <label><input type="radio" name="export-quality" value="maximum"><span>Maximum</span></label>
+            </div>
+            <p class="control-note" id="quality-note">Recommended · a faster render for everyday calls.</p>
+          </fieldset>
+          <fieldset class="option-field" id="export-resolution">
+            <legend>Resolution</legend>
+            <div class="select-buttons">
+              <label><input type="radio" name="export-resolution" value="480"><span>480p</span></label>
+              <label><input type="radio" name="export-resolution" value="720"><span>720p</span></label>
+              <label><input type="radio" name="export-resolution" value="1080" checked><span>1080p</span></label>
+            </div>
+          </fieldset>
+        </div>
+        <div class="export-actions">
+          <div class="export-feedback" id="export-feedback" data-state="idle" hidden>
+            <div class="export-status-row"><span id="export-status" role="status"></span><span id="export-percent"></span></div>
+            <progress id="export-progress" max="100" aria-label="Export progress" hidden></progress>
+            <p id="export-detail" class="control-note"></p>
+          </div>
+          <span class="control-note export-requirements">For your meeting app · Requires WebGPU</span>
+          <div class="export-buttons">
+            <button id="cancel-render" class="secondary-button" hidden>Cancel export</button>
+            <a id="download-again" class="secondary-button" download="roomlight-realistic.png" hidden>Download again</a>
+            <button id="export" class="primary-button" disabled>Export PNG <span aria-hidden="true">↗</span></button>
+          </div>
+        </div>
+      </section>
       <div class="workspace-foot"><span>ROOMLIGHT STUDIO &nbsp; / &nbsp; V 0.1</span><span>DESIGNED FOR REAL CONVERSATIONS</span></div>
     </section>
   </main>

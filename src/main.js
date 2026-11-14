@@ -3,12 +3,13 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 import { createPhotoreal } from './photoreal.js';
 import { createPipeline } from './render-pipeline.js';
 import { createRoom } from './scene/room.js';
+import { createExportUI } from './export-ui.js';
 
 export async function startStudio() {
   const viewport = document.querySelector('#viewport');
   const loadingStatus = document.querySelector('#preview-loading');
   const renderStatus = document.querySelector('#render-status');
-  const exportStatus = document.querySelector('#export-status');
+  const exportUI = createExportUI();
   const sidebar = document.querySelector('aside');
   const renderModes = document.querySelector('.render-quality [role=group]');
   const fastMode = document.querySelector('#quality-fast');
@@ -51,7 +52,7 @@ export async function startStudio() {
   );
   const camera = new THREE.PerspectiveCamera(48, 16 / 9, .1, 30);
   const pipeline = createPipeline(renderer, scene, camera, lighting.rasterLights);
-  const photoreal = createPhotoreal(renderer, scene, camera, pipeline, renderStatus, exportStatus, ready);
+  const photoreal = createPhotoreal(renderer, scene, camera, pipeline, renderStatus, exportUI.report, ready);
   const gl = renderer.getContext();
   const renderSize = new THREE.Vector2();
 
@@ -59,7 +60,7 @@ export async function startStudio() {
     const view = document.querySelector('[data-view].active').dataset.view;
     const mood = document.querySelector('[data-preset].active').dataset.preset;
     const [ceilingMode, weather, outside, deskOn, shelfOn, fillOn] = lightControls.map(
-      control => control.type === 'checkbox' ? control.checked : control.value,
+      control => control.type === 'checkbox' ? control.checked : control.querySelector('input:checked').value,
     );
     const settings = [mood, ceilingMode, outside ? weather : '', outside, deskOn, shelfOn, fillOn];
     const changed = settings.some((value, i) => value !== previousLighting?.[i]);
@@ -150,19 +151,26 @@ export async function startStudio() {
     syncControls();
     exportButton.disabled = exportQuality.disabled = exportResolution.disabled = true;
     sidebar.inert = renderModes.inert = true;
-    cancelExport.hidden = false;
+    exportUI.start();
     try {
-      await photoreal.exportImage(exportQuality.value, exportResolution.value);
+      const png = await photoreal.exportImage(
+        exportQuality.querySelector('input:checked').value,
+        exportResolution.querySelector('input:checked').value,
+      );
+      if (png) exportUI.complete(png);
     } catch (error) {
-      exportStatus.textContent = error.message;
+      exportUI.error(error);
     } finally {
       exportButton.disabled = exportQuality.disabled = exportResolution.disabled = false;
       sidebar.inert = renderModes.inert = false;
-      cancelExport.hidden = true;
+      exportUI.finish();
       resize();
     }
   };
-  cancelExport.onclick = () => photoreal.cancel();
+  cancelExport.onclick = () => {
+    exportUI.cancelling();
+    photoreal.cancel();
+  };
 
   renderer.domElement.addEventListener('webglcontextrestored', () => {
     pipeline.resetReflections();

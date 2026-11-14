@@ -94,7 +94,7 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
     if (failure) throw failure;
   }
   try {
-    report('Starting WebGPU…');
+    report({ stage: 'preparing' });
     pipeline = await createOidnRenderer(canvas, settings, error => { failure = error; }, checkCancelled);
     checkActive();
     const { renderer, tracer } = pipeline;
@@ -107,13 +107,12 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
         lastProgressAt = performance.now();
         lastProgress = position;
       }
-      const percent = Math.floor((progress ?? 0) * 100);
-      if (stage === 'compiling') report('Compiling WebGPU shaders…');
-      if (stage === 'rendering') report(`Rendering ${height}p · ${percent}%`);
-      if (stage === 'denoising') report(`Denoising ${height}p · ${percent}%`);
+      if (stage === 'compiling') report({ stage: 'preparing' });
+      if (stage === 'rendering') report({ stage: 'rendering', progress });
+      if (stage === 'denoising') report({ stage: 'finishing' });
     });
 
-    report('Preparing the scene…');
+    report({ stage: 'preparing' });
     await nextFrame();
     checkActive();
     tracer.setScene(scene, camera);
@@ -126,7 +125,7 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
       if (tracer.complete) {
         // Present only the finished OIDN result on the export canvas.
         // Request the PNG in the same frame, while that canvas image is current.
-        report('Encoding PNG…');
+        report({ stage: 'finishing' });
         tracer.renderToCanvas = true;
         tracer.renderSample();
         checkActive();

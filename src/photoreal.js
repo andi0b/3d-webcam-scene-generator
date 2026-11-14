@@ -13,7 +13,7 @@ export const EXPORT_PRESETS = {
 
 const exportCancelled = Symbol('export cancelled');
 
-export function createPhotoreal(renderer, scene, camera, preview, status, exportStatus, texturesReady) {
+export function createPhotoreal(renderer, scene, camera, preview, status, reportExport, texturesReady) {
   const gl = renderer.getContext();
   let tracer, denoiser, oidnPreview, library, starting;
   let webGpuUnavailable = false;
@@ -24,10 +24,6 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
 
   function report(text) {
     if (status.textContent !== text) status.textContent = text;
-  }
-
-  function reportExport(text) {
-    if (exportStatus.textContent !== text) exportStatus.textContent = text;
   }
 
   function checkPreviewContext(generation) {
@@ -208,7 +204,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
       cancelled = false;
       try {
         oidnPreview?.pause();
-        reportExport('Preparing export…');
+        reportExport({ stage: 'preparing' });
         await Promise.race([
           prepareScene(checkCancelled),
           new Promise((_, reject) => { cancelPreparation = reject; }),
@@ -222,16 +218,10 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
         exportCamera.updateProjectionMatrix();
         const png = await renderRealisticExport(scene, exportCamera, settings, dimensions, checkCancelled, reportExport);
         checkCancelled();
-        const url = URL.createObjectURL(png);
-        const link = document.createElement('a');
-        link.download = 'roomlight-realistic.png';
-        link.href = url;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-        reportExport('Download started');
+        return png;
       } catch (error) {
         if (error !== exportCancelled) throw error;
-        reportExport('Export cancelled');
+        reportExport({ stage: 'cancelled' });
       } finally {
         cancelPreparation = null;
         exporting = false;

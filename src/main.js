@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { createPhotoreal } from './photoreal.js';
-import { EXPORT_SIZES, nextFrame } from './realistic-export.js';
 import { createPipeline } from './render-pipeline.js';
 import { createRoom } from './scene/room.js';
 
@@ -33,7 +32,7 @@ export async function startStudio() {
   renderer.toneMappingExposure = 1.05;
   viewport.appendChild(renderer.domElement);
 
-  let dirty = true, cameraDirty = true, lightingDirty = true, exporting = false;
+  let dirty = true, cameraDirty = true, lightingDirty = true;
   let firstFrame = true, qualityStage = 0, qualityAt = Infinity, reflectionVersion = -1;
   let previousLighting, materialsDirty = false;
   let textureError;
@@ -132,7 +131,7 @@ export async function startStudio() {
   document.querySelector('#reset').addEventListener('click', () => { cameraDirty = true; });
   guide.addEventListener('change', showGuide);
   new ResizeObserver(() => {
-    if (exporting) return;
+    if (photoreal.exporting) return;
     resize();
     photoreal.invalidate('camera');
   }).observe(viewport);
@@ -146,71 +145,17 @@ export async function startStudio() {
     dirty = true;
   }
 
-  function setExportShadows(forExport) {
-    lighting.setShadowResolution(forExport);
-    renderer.shadowMap.needsUpdate = true;
-  }
-
-  async function renderFastExport(resolution) {
-    const { width, height } = EXPORT_SIZES[resolution];
-    const ratio = renderer.getPixelRatio();
-    try {
-      if (gl.isContextLost()) throw new Error('The graphics context was lost. Wait for the preview to return.');
-      setExportShadows(true);
-      renderer.setDrawingBufferSize(width, height, 1.5);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      pipeline.resize(width, height, 1.5);
-      pipeline.setEffects({ ambientOcclusion: true, antialiasing: true });
-      pipeline.render({ forExport: true });
-
-      const output = document.createElement('canvas');
-      output.width = width;
-      output.height = height;
-      const context = output.getContext('2d');
-      context.imageSmoothingQuality = 'high';
-      context.drawImage(renderer.domElement, 0, 0, width, height);
-      if (gl.isContextLost()) throw new Error('The graphics context was lost. Try a lower export resolution.');
-      return await new Promise(resolve => output.toBlob(resolve, 'image/png'));
-    } finally {
-      setExportShadows(false);
-      pipeline.setEffects({ ambientOcclusion: qualityStage >= 2, antialiasing: qualityStage >= 3 });
-      renderer.setPixelRatio(ratio);
-    }
-  }
-
   exportButton.onclick = async () => {
-    if (exporting) return;
+    if (photoreal.exporting) return;
     syncControls();
-    const realistic = photoreal.enabled;
-    const resolution = exportResolution.value;
-    const quality = exportQuality.value;
-    exporting = true;
     exportButton.disabled = exportQuality.disabled = exportResolution.disabled = true;
     sidebar.inert = renderModes.inert = true;
-    cancelExport.hidden = !realistic;
-    exportStatus.textContent = 'Preparing export…';
+    cancelExport.hidden = false;
     try {
-      if (realistic) {
-        await photoreal.exportImage(quality, resolution);
-      } else {
-        await nextFrame();
-        await ready();
-        syncControls();
-        const png = await renderFastExport(resolution);
-        if (!png) throw new Error('The browser could not encode the PNG.');
-        const url = URL.createObjectURL(png);
-        const link = document.createElement('a');
-        link.download = 'roomlight-background.png';
-        link.href = url;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-        exportStatus.textContent = 'Download started';
-      }
+      await photoreal.exportImage(exportQuality.value, exportResolution.value);
     } catch (error) {
       exportStatus.textContent = error.message;
     } finally {
-      exporting = false;
       exportButton.disabled = exportQuality.disabled = exportResolution.disabled = false;
       sidebar.inert = renderModes.inert = false;
       cancelExport.hidden = true;
@@ -221,11 +166,11 @@ export async function startStudio() {
 
   renderer.domElement.addEventListener('webglcontextrestored', () => {
     pipeline.resetReflections();
-    setExportShadows(false);
+    lighting.invalidateShadows();
+    renderer.shadowMap.needsUpdate = true;
     dirty = true;
   });
 
-  lighting.setShadowResolution(false);
   syncControls();
   resize();
   await pipeline.compile();
@@ -243,7 +188,7 @@ export async function startStudio() {
   }
 
   renderer.setAnimationLoop(now => {
-    if (exporting || gl.isContextLost()) return;
+    if (photoreal.exporting || gl.isContextLost()) return;
     syncControls();
     if (!dirty && now >= qualityAt) refinePreview(now);
     if (pipeline.reflectionVersion !== reflectionVersion) {

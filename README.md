@@ -10,9 +10,9 @@ A browser-based Three.js studio for composing still-image backgrounds for video 
 2. Adjust the camera position, angle, and field of view. Use the person guide to frame yourself in the scene.
 3. Export a PNG at 1920 × 1080, 1280 × 720, or 854 × 480 and import it as a virtual background in your meeting app. The person guide is excluded from the export.
 
-Fast preview and export use WebGL. Realistic preview traces eight samples with three light bounces at 55% of the viewport width and height on WebGPU, then runs Open Image Denoise. If WebGPU cannot initialize, the preview uses WebGL at 45% resolution with guided filtering. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause.
+Fast preview uses WebGL. Realistic preview traces eight samples with three light bounces at 55% of the viewport width and height on WebGPU, then runs Open Image Denoise. If WebGPU cannot initialize, the preview uses WebGL at 45% resolution with guided filtering. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause.
 
-Realistic PNG export requires a WebGPU-capable browser on HTTPS or localhost. It traces at the selected resolution and runs Open Image Denoise with albedo and normal data. Quick uses 10 samples and four bounces, Detailed uses 48 samples and six bounces, and Maximum uses 96 samples and eight bounces. You can cancel during rendering or denoising.
+PNG export always uses realistic lighting in either preview mode and requires a WebGPU-capable browser on HTTPS or localhost. It traces at the selected resolution and runs Open Image Denoise with albedo and normal data. Quick uses 10 samples and four bounces, Detailed uses 48 samples and six bounces, and Maximum uses 96 samples and eight bounces. You can cancel during rendering or denoising.
 
 ## Run locally
 

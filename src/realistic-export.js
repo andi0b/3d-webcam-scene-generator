@@ -4,7 +4,7 @@ export const EXPORT_SIZES = {
   '480': { width: 854, height: 480 },
 };
 
-export const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
+const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve));
 
 export async function createOidnRenderer(canvas, settings, onFailure, checkCancelled = () => {}) {
   if (!navigator.gpu) {

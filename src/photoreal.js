@@ -1,5 +1,5 @@
 import { createGuidedDenoiser } from './denoise.js';
-import { EXPORT_SIZES, nextFrame, renderRealisticExport } from './realistic-export.js';
+import { EXPORT_SIZES, renderRealisticExport } from './realistic-export.js';
 import { createOidnPreview } from './realistic-preview.js';
 
 export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 };
@@ -150,7 +150,6 @@ export function createPhotoreal(renderer, scene, camera, preview, status, export
 
   return {
     get exporting() { return exporting; },
-    get enabled() { return enabled; },
     cancel() {
       cancelled = true;
       cancelPreparation?.(exportCancelled);

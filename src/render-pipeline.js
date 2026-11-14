@@ -9,7 +9,6 @@ const reflectionDelay = 160;
 
 export function createPipeline(renderer, scene, camera, rasterLights) {
   const previewCube = new THREE.WebGLCubeRenderTarget(64, { type: THREE.HalfFloatType });
-  const exportCube = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
   const reflectionCamera = new THREE.CubeCamera(.1, camera.far, previewCube);
   reflectionCamera.position.set(-.5, 1.35, -1.35);
   reflectionCamera.coordinateSystem = renderer.coordinateSystem;
@@ -18,14 +17,13 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
 
   const captureBackground = new THREE.Color(0x000000);
   let pmrem = new THREE.PMREMGenerator(renderer);
-  let previewEnvironment, exportEnvironment;
-  let previewVersion = 0, publishedVersion = -1, exportVersion = -1;
+  let previewEnvironment;
+  let previewVersion = 0, publishedVersion = -1;
   let face = 0, reflectionRefreshAt = Infinity;
   let preparingEnvironment = false, environmentReady = false, contextGeneration = 0;
 
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }));
   let pixelRatio = renderer.getPixelRatio();
-  let exportSamples;
   composer.addPass(new RenderPass(scene, camera));
   const ao = new SSAOPass(scene, camera, 1, 1, 32);
   ao.kernelRadius = .065;
@@ -116,33 +114,9 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
     publishedVersion = version;
   }
 
-  function captureExport() {
-    capture(() => {
-      reflectionCamera.renderTarget = exportCube;
-      reflectionCamera.update(renderer, scene);
-    });
-    exportEnvironment = pmrem.fromCubemap(exportCube.texture, exportEnvironment);
-    exportVersion = previewVersion;
-  }
-
-  function render({ forExport = false } = {}) {
-    if (forExport) {
-      if (exportSamples === undefined) {
-        const gl = renderer.getContext();
-        const color = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA16F, gl.SAMPLES) ?? [];
-        const depth = gl.getInternalformatParameter(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, gl.SAMPLES) ?? [];
-        exportSamples = Math.max(0, ...color.filter(count => count <= 4 && depth.includes(count)));
-      }
-      if (exportVersion !== previewVersion) captureExport();
-    }
+  function render() {
     // Keep the last complete map while the next set of cube faces is captured.
-    const environment = forExport ? exportEnvironment : publishedVersion >= 0 ? previewEnvironment : null;
-    const samples = forExport ? exportSamples : 0;
-    for (const target of [composer.readBuffer, composer.writeBuffer]) {
-      if (target.samples === samples) continue;
-      target.samples = samples;
-      target.dispose();
-    }
+    const environment = publishedVersion >= 0 ? previewEnvironment : null;
     withRasterLights(() => withSceneEnvironment(environment?.texture ?? null, environment ? .75 : 0, () => {
       ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
       ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
@@ -172,10 +146,8 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
       preparingEnvironment = environmentReady = false;
       publishedVersion = -1;
       previewEnvironment?.dispose();
-      exportEnvironment?.dispose();
-      previewEnvironment = exportEnvironment = null;
+      previewEnvironment = null;
       previewCube.dispose();
-      exportCube.dispose();
       pmrem.dispose();
       pmrem = new THREE.PMREMGenerator(renderer);
       this.invalidateReflections();

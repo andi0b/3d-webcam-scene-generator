@@ -23,6 +23,9 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
   sun.target.position.set(.5, 1.1, -2.8);
   sun.castShadow = true;
   sun.shadow.autoUpdate = false;
+  sun.shadow.mapSize.setScalar(768);
+  ceiling.light.shadow.mapSize.setScalar(256);
+  sun.shadow.needsUpdate = ceiling.light.shadow.needsUpdate = true;
   Object.assign(sun.shadow.camera, { left: -4, right: 7.25, top: 4.5, bottom: -4.5, near: .5, far: 16 });
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.bias = -.00015;
@@ -37,9 +40,7 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
 
   return {
     rasterLights: [ceiling.light, sun, ...areaLights],
-    setShadowResolution(exporting) {
-      sun.shadow.mapSize.setScalar(exporting ? 3072 : 768);
-      ceiling.light.shadow.mapSize.setScalar(exporting ? 1024 : 256);
+    invalidateShadows() {
       sun.shadow.needsUpdate = ceiling.light.shadow.needsUpdate = true;
     },
     get shadowsNeedUpdate() {

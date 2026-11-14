@@ -9,7 +9,7 @@ const ceilingModes = {
   high: { color: '#ffd3a6', intensity: 49.6, bounce: .64, glow: 3.84 },
 };
 const sunPresets = {
-  day: { color: '#fff0d8', intensity: 4.65, height: 4.87, z: 3.6 },
+  day: { color: '#fff0d8', intensity: 4.65, height: 6.8, z: 2.4 },
   golden: { color: '#ffc385', intensity: 4.125, height: 2.42, z: 3.6 },
   night: { color: '#9eafd8', intensity: .108, height: 4.5, z: .4 },
 };

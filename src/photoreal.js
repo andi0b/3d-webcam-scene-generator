@@ -3,7 +3,7 @@ import { EXPORT_SIZES, renderRealisticExport } from './realistic-export.js';
 import { createOidnPreview } from './realistic-preview.js';
 
 export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 };
-const OIDN_PREVIEW_SETTINGS = { samples: 8, scale: .55, bounces: 3 };
+const OIDN_PREVIEW_SETTINGS = { samples: 12, scale: .75, bounces: 4 };
 
 export const EXPORT_PRESETS = {
   quick: { samples: 10, bounces: 4 },

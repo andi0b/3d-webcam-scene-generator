@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { box, cylinder, material, roundedBox } from '../primitives.js';
+import { createGalvanizedFinish } from '../surface-textures.js';
 
 function windowTimber(group, size, position, finish, radius, grainWidth = .36) {
   const mesh = roundedBox(group, size, position, finish, radius, 2);
@@ -23,35 +24,128 @@ function windowTimber(group, size, position, finish, radius, grainWidth = .36) {
   }
 }
 
-// This insert fits a 2.2 m by 2.33 m opening. Its origin is at the bottom center.
-export function createSideWindow(loadSurface) {
+function addSill(group, { backX, frontX, shoulderX, halfWidth, tongueHalfWidth, top }, finish) {
+  // The wide front wraps around the jambs, and the narrow tongue reaches under the sashes.
+  const outline = new THREE.Shape([
+    new THREE.Vector2(backX, -tongueHalfWidth),
+    new THREE.Vector2(shoulderX, -tongueHalfWidth),
+    new THREE.Vector2(shoulderX, -halfWidth),
+    new THREE.Vector2(frontX, -halfWidth),
+    new THREE.Vector2(frontX, halfWidth),
+    new THREE.Vector2(shoulderX, halfWidth),
+    new THREE.Vector2(shoulderX, tongueHalfWidth),
+    new THREE.Vector2(backX, tongueHalfWidth),
+  ]);
+  const bevel = .005;
+  const geometry = new THREE.ExtrudeGeometry(outline, {
+    depth: top - 2 * bevel,
+    bevelSegments: 2,
+    bevelSize: bevel,
+    bevelThickness: bevel,
+    bevelOffset: -bevel,
+  });
+  const { groups, attributes: { uv } } = geometry;
+  const centerX = (backX + frontX) / 2;
+  for (const { start, count, materialIndex } of groups) {
+    const isCap = materialIndex === 0;
+    for (let i = start; i < start + count; i++) {
+      const across = isCap ? uv.getX(i) - centerX : 1 - uv.getY(i);
+      const along = isCap ? uv.getY(i) : uv.getX(i);
+      uv.setXY(i, .5 + across / .70, .5 + along / 2.7);
+    }
+  }
+  const sill = new THREE.Mesh(geometry, finish);
+  sill.name = 'window-sill';
+  sill.rotation.x = Math.PI / 2;
+  sill.position.y = top - bevel;
+  sill.castShadow = sill.receiveShadow = true;
+  group.add(sill);
+}
+
+function addExteriorSill(group, { width, thickness, sashOuterX, sillTop }) {
+  const backX = sashOuterX + .004;
+  const frontX = -thickness - .035;
+  const rearHeight = sillTop / 2;
+  const frontHeight = rearHeight - .012;
+  const lipBottom = frontHeight - .021;
+  const gauge = .0016;
+  // Extrude the sloped sheet and folded drip edge as a single piece.
+  const section = new THREE.Shape([
+    new THREE.Vector2(backX, rearHeight),
+    new THREE.Vector2(frontX, frontHeight),
+    new THREE.Vector2(frontX, lipBottom),
+    new THREE.Vector2(frontX + .009, lipBottom),
+    new THREE.Vector2(frontX + .009, lipBottom + gauge),
+    new THREE.Vector2(frontX + gauge, lipBottom + gauge),
+    new THREE.Vector2(frontX + gauge, frontHeight - gauge),
+    new THREE.Vector2(backX, rearHeight - gauge),
+  ]);
+  const geometry = new THREE.ExtrudeGeometry(section, { depth: width, bevelEnabled: false });
+  const { position, normal, uv } = geometry.attributes;
+  const run = backX - frontX;
+  for (let i = 0; i < uv.count; i++) {
+    const x = position.getX(i), y = position.getY(i);
+    const end = Math.abs(normal.getZ(i)) > .5;
+    const vertical = Math.abs(normal.getX(i)) > .5;
+    const u = end ? (x - frontX) / run : position.getZ(i) / width;
+    const v = end ? y / run : (vertical ? frontHeight - y : x - frontX) / run;
+    uv.setXY(i, u, v);
+  }
+  const sill = new THREE.Mesh(geometry, createGalvanizedFinish());
+  sill.name = 'exterior-window-sill';
+  sill.position.z = -width / 2;
+  sill.castShadow = sill.receiveShadow = true;
+  group.add(sill);
+}
+
+// The origin is at the bottom center of the opening on the room side.
+export function createSideWindow({ width, height, thickness }, loadSurface, darkWood) {
   const group = new THREE.Group();
   group.name = 'side-window';
-  const sashWood = material('#e2e6e9', .52);
-  const sillWood = material('#f1eeeb', .46);
+  const matteFinish = { roughness: .78, specularIntensity: .22 };
+  const sashWood = new THREE.MeshPhysicalMaterial({ color: '#a7917d', ...matteFinish });
+  const sillWood = darkWood.clone();
+  sillWood.setValues(matteFinish);
+  sillWood.normalScale.setScalar(1.35);
   const hardware = material('#4b4b46', .32, .72);
   const glazingSeal = material('#46382e', .82);
-  loadSurface(sashWood, 'oak.png', .32, [155, 122, 86]);
-  loadSurface(sillWood, 'oak-sill.png', .35, [169, 139, 103]);
+  loadSurface(sashWood, 'oak.png', 1.25, [155, 122, 86]);
 
-  function addFrame({ x, depth, bottom, top, minZ, maxZ, profile, bevel }) {
-    const centerY = (bottom + top) / 2;
+  function addFrame({ x, depth, bottom, top, minZ, maxZ, profile, bevel, bottomRail = true }) {
+    const stileBottom = bottomRail ? bottom + profile : bottom;
+    const stileTop = top - profile;
+    const centerY = (stileBottom + stileTop) / 2;
     const centerZ = (minZ + maxZ) / 2;
-    for (const y of [bottom + profile / 2, top - profile / 2]) {
+    const rails = bottomRail ? [bottom + profile / 2, top - profile / 2] : [top - profile / 2];
+    for (const y of rails) {
       windowTimber(group, [depth, profile, maxZ - minZ], [x, y, centerZ], sashWood, bevel);
     }
     for (const z of [minZ + profile / 2, maxZ - profile / 2]) {
-      windowTimber(group, [depth, top - bottom - 2 * profile, profile], [x, centerY, z], sashWood, bevel);
+      windowTimber(group, [depth, stileTop - stileBottom, profile], [x, centerY, z], sashWood, bevel);
     }
   }
 
-  // The sashes sit near the exterior face, behind the oak lining and sill.
-  windowTimber(group, [.61, .066, 2.42], [.225, -.005, 0], sillWood, .009, .70);
-  const lining = { bottom: .028, top: 2.33, minZ: -1.1, maxZ: 1.1, bevel: .003 };
-  addFrame({ ...lining, x: .055, depth: .15, profile: .034 });
-  addFrame({ ...lining, x: -.098, depth: .055, profile: .065 });
-  const sash = { x: -.059, depth: .09, bottom: .083, top: 2.275, profile: .036, bevel: .004 };
-  const sashFaceX = sash.x + sash.depth / 2;
+  // Set the sash back from the room-side face independently of the exterior plaster depth.
+  const sashOuterX = -.25;
+  const sashDepth = .09;
+  const sash = { x: sashOuterX + sashDepth / 2, depth: sashDepth, bottom: .083, top: height - .055, profile: .036, bevel: .004 };
+  const sillTop = sash.bottom;
+  const liningBackX = sashOuterX + .004;
+  const liningFrontX = .04;
+  const liningWidth = .065;
+  const sillOverlap = .006;
+  addSill(group, {
+    backX: sashOuterX, frontX: .44, shoulderX: -sillOverlap,
+    halfWidth: width / 2 + .11, tongueHalfWidth: width / 2 - liningWidth + sillOverlap, top: sillTop,
+  }, sillWood);
+  addExteriorSill(group, { width, thickness, sashOuterX, sillTop });
+  addFrame({
+    x: (liningBackX + liningFrontX) / 2, depth: liningFrontX - liningBackX,
+    bottom: 0, top: height, minZ: -width / 2, maxZ: width / 2, profile: liningWidth, bevel: .003, bottomRail: false,
+  });
+  const glassX = sash.x;
+  const sashFaceX = sashOuterX + sashDepth;
+  const sashHalfWidth = width / 2 - .049;
   const glassMaterial = new THREE.MeshPhysicalMaterial({
     color: '#d8e1df', transparent: true, opacity: .035, roughness: .06,
     envMapIntensity: .5, side: THREE.DoubleSide, depthWrite: false,
@@ -59,22 +153,22 @@ export function createSideWindow(loadSurface) {
   const lights = [];
   const sashHeight = sash.top - sash.bottom;
   const y = (sash.top + sash.bottom) / 2;
-  box(group, [.022, sashHeight, .018], [sash.x - .037, y, 0], glazingSeal);
-  for (const [minZ, maxZ] of [[-1.051, -.006], [.006, 1.051]]) {
+  box(group, [.022, sashHeight, .018], [glassX, y, 0], glazingSeal);
+  for (const [minZ, maxZ] of [[-sashHalfWidth, -.006], [.006, sashHalfWidth]]) {
     addFrame({ ...sash, minZ, maxZ });
     const innerWidth = maxZ - minZ - 2 * sash.profile;
     const innerHeight = sashHeight - 2 * sash.profile;
     const z = (minZ + maxZ) / 2;
     const sealWidth = .009;
     for (const edge of [-1, 1]) {
-      box(group, [.016, innerHeight, sealWidth], [sashFaceX - .023, y, z + edge * (innerWidth - sealWidth) / 2], glazingSeal);
-      box(group, [.016, sealWidth, innerWidth - 2 * sealWidth], [sashFaceX - .023, y + edge * (innerHeight - sealWidth) / 2, z], glazingSeal);
+      box(group, [.016, innerHeight, sealWidth], [glassX, y, z + edge * (innerWidth - sealWidth) / 2], glazingSeal);
+      box(group, [.016, sealWidth, innerWidth - 2 * sealWidth], [glassX, y + edge * (innerHeight - sealWidth) / 2, z], glazingSeal);
     }
     const paneWidth = innerWidth - sealWidth;
     const paneHeight = innerHeight - sealWidth;
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(paneWidth, paneHeight), glassMaterial);
     glass.rotation.y = Math.PI / 2;
-    glass.position.set(sashFaceX - .033, y, z);
+    glass.position.set(glassX, y, z);
     group.add(glass);
 
     // The diffuse emitters match the panes and face into the room.
@@ -84,7 +178,7 @@ export function createSideWindow(loadSurface) {
     lights.push(daylight);
     group.add(daylight);
   }
-  for (const z of [-1.038, 1.038]) {
+  for (const z of [-sashHalfWidth + .013, sashHalfWidth - .013]) {
     for (const y of [.40, 1.93]) {
       cylinder(group, [.0095, .0095, .068], [sashFaceX + .003, y, z], hardware);
     }
@@ -108,5 +202,5 @@ export function createSideWindow(loadSurface) {
   handle.position.set(sashFaceX - .001, handleY, handleZ - .011);
   handle.castShadow = handle.receiveShadow = true;
   group.add(handle);
-  return { group, lights };
+  return { group, lights, sillTop };
 }

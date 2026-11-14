@@ -9,29 +9,34 @@ const ceilingModes = {
   high: { color: '#ffd3a6', intensity: 49.6, bounce: .64, glow: 3.84 },
 };
 const sunPresets = {
-  day: { color: '#fff0d8', intensity: 4.65, height: 6.8, z: 2.4 },
-  golden: { color: '#ffc385', intensity: 4.125, height: 2.42, z: 3.6 },
-  night: { color: '#9eafd8', intensity: .108, height: 4.5, z: .4 },
+  day: { color: '#fff0d8', intensity: 4.1, direction: [-1, .49, .51], radius: .60 },
+  golden: { color: '#ffc385', intensity: 4.125, direction: [-1, .27, .46], radius: .65 },
+  night: { color: '#9eafd8', intensity: .108, direction: [-6.5, 3.4, 3.2], radius: .30 },
 };
+const sunDistance = 36;
 const weatherModes = {
-  sunny: { direct: 1, diffuse: 1 },
-  cloudy: { direct: 0, diffuse: .55 },
+  sunny: { direct: 1, diffuse: .45 },
+  cloudy: { direct: 0, diffuse: .45 },
   foggy: { direct: 0, diffuse: .2 },
 };
 
 export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLamp, shelfLamp, shelfWash, backdrop }) {
-  const sun = new THREE.DirectionalLight();
+  // Both path tracers sample the spotlight's disc. A distant disc with no
+  // falloff gives nearly parallel rays and softens edges away from the caster.
+  const sun = new THREE.SpotLight('#ffffff', 0, 0, Math.PI / 4, .15, 0);
   sun.target.position.set(.5, 1.1, -2.8);
   sun.castShadow = true;
   sun.shadow.autoUpdate = false;
   sun.shadow.mapSize.setScalar(768);
   ceiling.light.shadow.mapSize.setScalar(256);
   sun.shadow.needsUpdate = ceiling.light.shadow.needsUpdate = true;
-  Object.assign(sun.shadow.camera, { left: -4, right: 7.25, top: 4.5, bottom: -4.5, near: .5, far: 16 });
+  sun.shadow.focus = .22;
+  Object.assign(sun.shadow.camera, { near: sunDistance - 8, far: sunDistance + 8 });
   sun.shadow.camera.updateProjectionMatrix();
   sun.shadow.bias = -.00015;
   sun.shadow.normalBias = .006;
-  sun.shadow.radius = 1;
+  sun.shadow.radius = 2;
+  let sunMood;
 
   const fill = new THREE.RectAreaLight('#f1ede4', .8, 3, 2);
   fill.position.set(0, 2.4, 1.5);
@@ -65,16 +70,19 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
       const outsideDiffuse = outside ? conditions.diffuse : 0;
       sun.intensity = outside ? sunlight.intensity * conditions.direct : 0;
       sun.color.set(sunlight.color);
-      if (sun.position.y !== sunlight.height || sun.position.z !== sunlight.z) {
-        sun.position.set(-6, sunlight.height, sunlight.z);
+      if (mood !== sunMood) {
+        sun.position.fromArray(sunlight.direction).setLength(sunDistance).add(sun.target.position);
+        sun.radius = sunlight.radius;
         sun.shadow.needsUpdate = true;
+        sunMood = mood;
       }
 
       const windowColor = isNight ? '#a8bcf1' : mood === 'golden' ? '#ffe2bd' : '#eef4ff';
       const windowIntensity = isNight ? .288 : mood === 'golden' ? 12.6 : 15.45;
+      const windowFill = !isNight && conditions.direct ? .75 : 1;
       for (const light of sideWindow.lights) {
         light.color.set(windowColor);
-        light.intensity = windowIntensity * outsideDiffuse;
+        light.intensity = windowIntensity * outsideDiffuse * windowFill;
       }
       clerestory.light.color.set(windowColor);
       clerestory.light.intensity = windowIntensity * outsideDiffuse * .28;

@@ -75,7 +75,7 @@ export function createOutdoorBranches() {
           Math.PI / 2 + (random() - .5) * 1.2,
           swing * (.45 + random() * 1.45),
         );
-        leaf.scale.setScalar(.042 + random() * .033);
+        leaf.scale.setScalar(.06 + random() * .048);
         leaf.castShadow = true;
         group.add(leaf);
       }

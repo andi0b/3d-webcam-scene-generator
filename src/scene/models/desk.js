@@ -1,19 +1,18 @@
 import * as THREE from 'three';
-import { material, roundedBox } from '../primitives.js';
+import { material, oakBox, roundedBox } from '../primitives.js';
 import { createBook } from './book.js';
 
-export function createDesk(wood, dark) {
+export function createDesk(wood, dark, baseWood, drawerWood = baseWood) {
   const group = new THREE.Group();
   group.name = 'desk';
-  const legMaterial = material('#9b795b', .78);
-  roundedBox(group, [2.3, .095, 1.02], [0, .87, 0], material('#e0d1ba', .53), .045, 5);
+  oakBox(group, [2.3, .095, 1.02], [0, .87, 0], wood, .045);
   for (const x of [-.97, .90]) {
     for (const z of [-.35, .35]) {
-      const leg = roundedBox(group, [.065, .82, .065], [x, .41, z], legMaterial, .018, 5);
+      const leg = roundedBox(group, [.065, .82, .065], [x, .41, z], baseWood, .018, 5);
       leg.rotation.z = x < 0 ? -.025 : .025;
     }
   }
-  roundedBox(group, [2, .10, .055], [-.03, .77, -.39], legMaterial, .012, 5);
+  roundedBox(group, [2, .10, .055], [-.03, .77, -.39], baseWood, .012, 5);
 
   const titles = ['STUDIO', 'FORM & SPACE', 'NOTES'];
   const colors = ['#51463a', '#a89a81', '#ddd0b8'];
@@ -27,8 +26,8 @@ export function createDesk(wood, dark) {
   }
 
   // A shallow drawer with an inset face and recessed pull.
-  roundedBox(group, [.85, .16, .48], [-.40, .73, .05], wood, .01);
-  roundedBox(group, [.82, .13, .018], [-.40, .73, .30], wood, .006);
+  roundedBox(group, [.85, .16, .48], [-.40, .73, .05], drawerWood, .01);
+  oakBox(group, [.82, .13, .018], [-.40, .73, .30], drawerWood, .006);
   roundedBox(group, [.18, .012, .025], [-.40, .755, .323], dark, .004);
   const profile = [[.052, 0], [.065, .006], [.065, .19], [.057, .19], [.057, .012], [0, .012]];
   const cup = new THREE.Mesh(new THREE.LatheGeometry(profile.map(p => new THREE.Vector2(...p)), 48), material('#39362d', .38, .5));

@@ -24,14 +24,16 @@ export function roundedBox(parent, size, position, material, radius = .003, segm
 }
 
 export function oakBox(parent, size, position, material, radius) {
-  const [width, height, depth] = size;
   const mesh = roundedBox(parent, size, position, material, radius, 5);
-  const { position: vertices, uv } = mesh.geometry.attributes;
-  const alongX = width > height && width > depth;
-  for (let i = 0; i < vertices.count; i++) {
-    const along = alongX ? vertices.getX(i) : height > depth ? vertices.getY(i) : vertices.getZ(i);
-    const across = alongX ? vertices.getZ(i) : vertices.getX(i);
-    uv.setXY(i, across * 3, along * .65);
+  const { groups, attributes: { position: vertices, uv } } = mesh.geometry;
+  // Run the grain along the board and project it onto each face and its bevel.
+  for (const { start, count, materialIndex } of groups) {
+    const faceAxis = Math.floor(materialIndex / 2);
+    for (let i = start; i < start + count; i++) {
+      const across = faceAxis === 1 ? vertices.getZ(i) : vertices.getY(i);
+      const along = faceAxis === 0 ? vertices.getZ(i) : vertices.getX(i);
+      uv.setXY(i, .5 + across / 1.2, .5 + along / 2.7);
+    }
   }
   uv.needsUpdate = true;
   return mesh;

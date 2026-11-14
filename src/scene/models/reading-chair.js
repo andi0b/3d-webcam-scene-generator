@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { createNormalTexture } from '../../surface-normals.js';
 import { roundedBox } from '../primitives.js';
+import { createBirchFinish } from '../surface-textures.js';
 
 function createChairPart(geometry, materials) {
   // The path-tracer merger expects one material per mesh. Keep the original
@@ -34,23 +35,11 @@ function createChairPart(geometry, materials) {
   return part;
 }
 
-export function createReadingChair() {
+export function createReadingChair(birch = createBirchFinish()) {
   const chair = new THREE.Group();
   chair.name = 'reading-chair';
   // Scale the model to the reference chair's 68 × 82 × 100 cm overall dimensions.
   chair.scale.set(.80,.85,.85);
-  const birchCanvas = document.createElement('canvas'); birchCanvas.width = 256; birchCanvas.height = 1024;
-  const grain = birchCanvas.getContext('2d'); grain.fillStyle = '#dfd1ac'; grain.fillRect(0,0,256,1024);
-  // Fine, low-contrast streaks suggest birch veneer without the dark oak of the room.
-  for (let i=0; i<120; i++) {
-    const x=(i*73)%256, alpha=.035+(i%5)*.009;
-    grain.strokeStyle=`rgba(142,117,72,${alpha})`; grain.lineWidth=i%7===0?1.3:.45;
-    grain.beginPath(); grain.moveTo(x,0); grain.bezierCurveTo(x+4,300,x-5,700,x+2,1024); grain.stroke();
-  }
-  const birchMap = new THREE.CanvasTexture(birchCanvas); birchMap.colorSpace = THREE.SRGBColorSpace;
-  birchMap.wrapS = birchMap.wrapT = THREE.RepeatWrapping;
-  const satinFinish = { roughness: .46, clearcoat: .28, clearcoatRoughness: .38 };
-  const birch = new THREE.MeshPhysicalMaterial({ color: '#ffffff', map: birchMap, ...satinFinish });
   // Exposed edges of the bentwood show the fine layers of the veneer stack.
   const laminateCanvas=document.createElement('canvas'); laminateCanvas.width=128; laminateCanvas.height=128;
   const laminateCtx=laminateCanvas.getContext('2d'); laminateCtx.fillStyle='#e5d8b5'; laminateCtx.fillRect(0,0,128,128);
@@ -60,7 +49,8 @@ export function createReadingChair() {
   }
   const laminateMap=new THREE.CanvasTexture(laminateCanvas); laminateMap.colorSpace=THREE.SRGBColorSpace;
   laminateMap.wrapS=laminateMap.wrapT=THREE.RepeatWrapping; laminateMap.repeat.set(1,12);
-  const laminate = new THREE.MeshPhysicalMaterial({ map: laminateMap, ...satinFinish });
+  const laminate = birch.clone();
+  laminate.map = laminateMap;
   const weave = createNormalTexture(128, 128, (x, y) =>
     .25 * (Math.cos(x * Math.PI / 4) + Math.cos(y * Math.PI / 4)) +
     .125 * Math.cos((x + y) * Math.PI / 8), .22);

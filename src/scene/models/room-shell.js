@@ -18,19 +18,31 @@ export function createRoomShell(sideOpening, rearOpening, loadSurface) {
   box(group, [7.3, ROOM_HEIGHT, .18], [.4, ROOM_HEIGHT / 2, MIN_Z], wall);
   box(group, [.18, ROOM_HEIGHT, 6], [3.65, ROOM_HEIGHT / 2, 0], wall);
 
-  // The window and surrounding wall share the same opening dimensions and placement.
-  const sideWall = new THREE.Group();
-  sideWall.name = 'side-wall';
-  sideWall.position.x = sideOpening.x;
+  // Extrude one square-edged opening through the full wall depth.
   const nearZ = sideOpening.z - sideOpening.width / 2;
   const farZ = sideOpening.z + sideOpening.width / 2;
   const sideTop = sideOpening.y + sideOpening.height;
-  for (const [min, max] of [[MIN_Z, nearZ], [farZ, MAX_Z]]) {
-    if (max > min) box(sideWall, [.18, ROOM_HEIGHT, max - min], [0, ROOM_HEIGHT / 2, (min + max) / 2], wall);
-  }
-  for (const [bottom, top] of [[0, sideOpening.y], [sideTop, ROOM_HEIGHT]]) {
-    if (top > bottom) box(sideWall, [.18, top - bottom, sideOpening.width], [0, (bottom + top) / 2, sideOpening.z], wall);
-  }
+  const sideProfile = new THREE.Shape([
+    new THREE.Vector2(MIN_Z, 0),
+    new THREE.Vector2(MIN_Z, ROOM_HEIGHT),
+    new THREE.Vector2(MAX_Z, ROOM_HEIGHT),
+    new THREE.Vector2(MAX_Z, 0),
+  ]);
+  sideProfile.holes.push(new THREE.Path([
+    new THREE.Vector2(nearZ, sideOpening.y),
+    new THREE.Vector2(farZ, sideOpening.y),
+    new THREE.Vector2(farZ, sideTop),
+    new THREE.Vector2(nearZ, sideTop),
+  ]));
+  const sideGeometry = new THREE.ExtrudeGeometry(sideProfile, {
+    depth: sideOpening.thickness,
+    bevelEnabled: false,
+  });
+  const sideWall = new THREE.Mesh(sideGeometry, wall);
+  sideWall.name = 'side-wall';
+  sideWall.position.x = sideOpening.insideX;
+  sideWall.rotation.y = -Math.PI / 2;
+  sideWall.castShadow = sideWall.receiveShadow = true;
 
   const rearWall = new THREE.Group();
   rearWall.name = 'rear-wall';

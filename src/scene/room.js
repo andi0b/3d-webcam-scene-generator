@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createLighting } from './lighting.js';
 import { material } from './primitives.js';
-import { createTextureLoader } from './surface-textures.js';
+import { createBirchFinish, createTextureLoader } from './surface-textures.js';
 import { createBackdrop } from './models/backdrop.js';
 import { createCeilingFixture } from './models/ceiling-fixture.js';
 import { createClerestory } from './models/clerestory.js';
@@ -33,22 +33,32 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
     finish.normalMap.wrapS = finish.normalMap.wrapT = THREE.RepeatWrapping;
     finish.normalScale.setScalar(normalScale);
   };
-  const wood = material('#ffffff', .42);
-  wood.map = loadRoomTexture('furniture-oak.png', { fallback: [174, 140, 99] });
-  wood.normalMap = loadRoomTexture('furniture-oak-normal.png', { normal: true });
-  wood.map.wrapS = wood.map.wrapT = wood.normalMap.wrapS = wood.normalMap.wrapT = THREE.RepeatWrapping;
+  const wood = material('#c5baa9', .32);
+  loadSurface(wood, 'oak-sill.png', .50, [169, 139, 103]);
+  wood.map.wrapS = wood.map.wrapT = THREE.RepeatWrapping;
+  // A cool stain balances the warm oak grain to give it a charcoal-brown finish.
+  const darkWood = new THREE.MeshPhysicalMaterial({
+    color: '#7e9ff0',
+    map: wood.map,
+    normalMap: wood.normalMap,
+    normalScale: new THREE.Vector2(.8, .8),
+    roughness: .60,
+    specularIntensity: .34,
+  });
   const dark = material('#34322c');
+  const birch = createBirchFinish();
 
   // The shell owns the openings. The frames and panes are separate inserts.
-  const sideOpening = { x: -3.25, y: .72, z: -1.4, width: 2.2, height: 2.33 };
+  const sideOpening = { insideX: -3.16, y: .72, z: -1.4, width: 2.2, height: 2.33, thickness: .60 };
   const clerestoryHeight = ROOM_HEIGHT * .1;
   const rearOpening = { x: .2, y: ROOM_HEIGHT - clerestoryHeight, z: 3.08, width: 6.72, height: clerestoryHeight };
   scene.add(createRoomShell(sideOpening, rearOpening, loadSurface));
 
-  const sideWindow = createSideWindow(loadSurface);
-  sideWindow.group.position.set(sideOpening.x, sideOpening.y, sideOpening.z);
+  const sideWindow = createSideWindow(sideOpening, loadSurface, darkWood);
+  sideWindow.group.position.set(sideOpening.insideX, sideOpening.y, sideOpening.z);
   const sillPlant = createPlant({ seed: 6333, scale: .8, trailing: true, overhang: .10 });
-  sillPlant.position.set(.38, .034, .15);
+  // The scaled saucer extends 6.4 mm below the plant's origin.
+  sillPlant.position.set(.29, sideWindow.sillTop + .0064, .85);
   sillPlant.rotation.y = Math.PI / 2;
   sideWindow.group.add(sillPlant);
   const clerestory = createClerestory(rearOpening);
@@ -59,7 +69,8 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
   const backdrop = createBackdrop(loadTexture, onTextureChanged);
   backdrop.group.position.set(-5.85, 2.10, -3.24);
   const branches = createOutdoorBranches();
-  branches.position.x = -4.42;
+  // The branch tips intercept the beam to the wall beneath the shelves.
+  branches.position.set(-5.05, 0, -1.41);
   scene.add(backdrop.group, branches);
 
   const shelves = createShelves(wood);
@@ -67,17 +78,17 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
   const shelfLamp = createShelfLamp(dark);
   shelfLamp.group.position.set(.66, 2.82, .10);
   shelves.group.add(shelfLamp.group);
-  const relief = createMountainRelief(wood, dark, filename => loadRoomTexture(filename, { fallback: [91, 82, 73] }));
+  const relief = createMountainRelief(birch, dark, filename => loadRoomTexture(filename, { fallback: [91, 82, 73] }));
   relief.position.set(1.40, 1.99, -2.855);
   scene.add(shelves.group, relief);
 
-  const desk = createDesk(wood, dark);
+  const desk = createDesk(wood, dark, darkWood, birch);
   desk.position.set(2.45, 0, -1.95);
   const deskLamp = createDeskLamp(dark);
   deskLamp.group.position.set(.59, .92, -.15);
   desk.add(deskLamp.group);
 
-  const chair = createReadingChair();
+  const chair = createReadingChair(birch);
   chair.scale.multiplyScalar(1.656);
   // Lower the chair so the runners meet the floorboards.
   chair.position.set(-1.478, -.0583, -1.528);

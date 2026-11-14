@@ -108,7 +108,7 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
       }).catch(error => {
         if (generation !== contextGeneration) return;
         preparingEnvironment = false;
-        reflectionRefreshAt = Infinity;
+        if (version === previewVersion) reflectionRefreshAt = Infinity;
         console.warn('Could not prepare preview reflections', error);
       });
       return;
@@ -135,15 +135,15 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
       }
       if (exportVersion !== previewVersion) captureExport();
     }
-    const environment = forExport ? exportEnvironment : environmentReady ? previewEnvironment : null;
-    const intensity = forExport || publishedVersion === previewVersion ? .75 : 0;
+    // Keep the last complete map while the next set of cube faces is captured.
+    const environment = forExport ? exportEnvironment : publishedVersion >= 0 ? previewEnvironment : null;
     const samples = forExport ? exportSamples : 0;
     for (const target of [composer.readBuffer, composer.writeBuffer]) {
       if (target.samples === samples) continue;
       target.samples = samples;
       target.dispose();
     }
-    withRasterLights(() => withSceneEnvironment(environment?.texture ?? null, intensity, () => {
+    withRasterLights(() => withSceneEnvironment(environment?.texture ?? null, environment ? .75 : 0, () => {
       ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
       ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
       composer.render();
@@ -156,10 +156,10 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
     },
     get reflectionVersion() { return publishedVersion; },
     compile,
-    invalidateReflections() {
+    invalidateReflections({ immediate = false } = {}) {
       previewVersion++;
       face = 0;
-      reflectionRefreshAt = performance.now() + reflectionDelay;
+      reflectionRefreshAt = immediate ? 0 : performance.now() + reflectionDelay;
     },
     advanceReflections() {
       if (publishedVersion === previewVersion || preparingEnvironment || performance.now() < reflectionRefreshAt) return false;
@@ -170,6 +170,7 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
     resetReflections() {
       contextGeneration++;
       preparingEnvironment = environmentReady = false;
+      publishedVersion = -1;
       previewEnvironment?.dispose();
       exportEnvironment?.dispose();
       previewEnvironment = exportEnvironment = null;

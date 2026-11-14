@@ -70,14 +70,13 @@ export async function startStudio() {
     backdrop.update(view, mood);
     if (qualityStage > 0 && lighting.shadowsNeedUpdate) renderer.shadowMap.needsUpdate = true;
     const backdropChanged = previousBackdrop !== backdrop.material.emissiveMap;
-    if (changed || (outside && backdropChanged)) {
-      pipeline.invalidateReflections();
-      dirty = true;
-    }
+    const reflectionsChanged = changed || (outside && backdropChanged);
+    if (reflectionsChanged) pipeline.invalidateReflections({ immediate: changed && !firstFrame });
     if (backdropChanged || materialChanged) photoreal.invalidate('scene');
     else if (changed) photoreal.invalidate('lighting');
     previousLighting = settings;
     lightingDirty = false;
+    return reflectionsChanged;
   }
 
   function applyCamera() {
@@ -110,14 +109,15 @@ export async function startStudio() {
   }
 
   function syncControls() {
-    if (lightingDirty) applyLighting();
+    const reflectionsChanged = lightingDirty && applyLighting();
     if (cameraDirty) applyCamera();
     if (materialsDirty) {
-      pipeline.invalidateReflections();
+      if (!reflectionsChanged) pipeline.invalidateReflections();
       photoreal.invalidate('scene');
       materialsDirty = false;
       dirty = true;
     }
+    dirty ||= reflectionsChanged;
   }
 
   for (const control of document.querySelectorAll('[data-view], [data-preset]')) {

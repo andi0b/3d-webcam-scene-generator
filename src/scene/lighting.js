@@ -15,7 +15,7 @@ const sunPresets = {
 };
 const sunDistance = 36;
 const weatherModes = {
-  sunny: { direct: 1, diffuse: .45 },
+  sunny: { direct: 1, diffuse: .55 },
   cloudy: { direct: 0, diffuse: .45 },
   foggy: { direct: 0, diffuse: .2 },
 };
@@ -45,15 +45,19 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
   shelfLamp.light.color.set(warm2700K);
   shelfWash.color.set(warm2700K);
   shelfLamp.globe.emissive.set(warm2700K);
-  const areaLights = [...sideWindow.lights, clerestory.light, deskLamp.light, shelfLamp.light, shelfWash, fill];
+  const exteriorLight = sideWindow.exteriorLight;
+  const shadowLights = [ceiling.light, sun, exteriorLight];
+  const rasterLights = [
+    ...shadowLights, clerestory.light, deskLamp.light, shelfLamp.light, shelfWash, fill,
+  ];
 
   return {
-    rasterLights: [ceiling.light, sun, ...areaLights],
+    rasterLights,
     invalidateShadows() {
-      sun.shadow.needsUpdate = ceiling.light.shadow.needsUpdate = true;
+      for (const light of shadowLights) light.shadow.needsUpdate = true;
     },
     get shadowsNeedUpdate() {
-      return sun.shadow.needsUpdate || ceiling.light.shadow.needsUpdate;
+      return shadowLights.some(light => light.shadow.needsUpdate);
     },
     update({ mood, weather, ceilingMode, outside, deskOn, shelfOn, fillOn }) {
       const isNight = mood === 'night';
@@ -80,10 +84,8 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
       const windowColor = isNight ? '#a8bcf1' : mood === 'golden' ? '#ffe2bd' : '#eef4ff';
       const windowIntensity = isNight ? .288 : mood === 'golden' ? 12.6 : 15.45;
       const windowFill = !isNight && conditions.direct ? .75 : 1;
-      for (const light of sideWindow.lights) {
-        light.color.set(windowColor);
-        light.intensity = windowIntensity * outsideDiffuse * windowFill;
-      }
+      exteriorLight.color.set(windowColor);
+      exteriorLight.intensity = 3.7 * windowIntensity * outsideDiffuse * windowFill;
       clerestory.light.color.set(windowColor);
       clerestory.light.intensity = windowIntensity * outsideDiffuse * .28;
       clerestory.glass.emissive.copy(clerestory.light.color);
@@ -95,7 +97,7 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
       shelfWash.intensity = shelfOn ? 8 : 0;
       fill.intensity = fillOn ? (isNight ? .12 : .8) : 0;
       // The tracer picks from visible lights uniformly. Disabled lights would waste samples.
-      for (const light of [ceiling.light, sun, ...areaLights]) {
+      for (const light of rasterLights) {
         light.visible = light.intensity > 0;
       }
       deskLamp.bulb.color.set(deskOn ? '#ffe0ad' : '#77716b');

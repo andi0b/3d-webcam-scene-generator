@@ -73,7 +73,7 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
   branches.position.set(-5.05, 0, -1.41);
   scene.add(backdrop.group, branches);
 
-  const shelves = createShelves(wood);
+  const shelves = createShelves(wood, darkWood);
   shelves.group.position.set(-2.04, 0, -2.74);
   const shelfLamp = createShelfLamp(dark);
   shelfLamp.group.position.set(.66, 2.82, .10);

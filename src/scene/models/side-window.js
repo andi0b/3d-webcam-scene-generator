@@ -150,7 +150,6 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
     color: '#d8e1df', transparent: true, opacity: .035, roughness: .06,
     envMapIntensity: .5, side: THREE.DoubleSide, depthWrite: false,
   });
-  const lights = [];
   const sashHeight = sash.top - sash.bottom;
   const y = (sash.top + sash.bottom) / 2;
   box(group, [.022, sashHeight, .018], [glassX, y, 0], glazingSeal);
@@ -170,14 +169,23 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
     glass.rotation.y = Math.PI / 2;
     glass.position.set(glassX, y, z);
     group.add(glass);
-
-    // The diffuse emitters match the panes and face into the room.
-    const daylight = new THREE.RectAreaLight('#ffffff', 0, paneWidth, paneHeight);
-    daylight.position.set(glass.position.x + .008, y, z);
-    daylight.rotation.y = -Math.PI / 2;
-    lights.push(daylight);
-    group.add(daylight);
   }
+  // The path tracers sample this broad disc, while Fast preview uses its shadow map.
+  const exteriorLight = new THREE.SpotLight('#ffffff', 0, 0, Math.PI / 3, .35, 1);
+  exteriorLight.position.set(-thickness - 2.65, height * .62, 0);
+  exteriorLight.target.position.set(0, height * .48, 0);
+  exteriorLight.radius = 1.4;
+  exteriorLight.castShadow = true;
+  exteriorLight.shadow.autoUpdate = false;
+  exteriorLight.shadow.needsUpdate = true;
+  exteriorLight.shadow.mapSize.setScalar(512);
+  exteriorLight.shadow.focus = .65;
+  exteriorLight.shadow.camera.far = 14;
+  exteriorLight.shadow.bias = -.00025;
+  exteriorLight.shadow.normalBias = .008;
+  exteriorLight.shadow.radius = 5;
+  group.add(exteriorLight, exteriorLight.target);
+
   for (const z of [-sashHalfWidth + .013, sashHalfWidth - .013]) {
     for (const y of [.40, 1.93]) {
       cylinder(group, [.0095, .0095, .068], [sashFaceX + .003, y, z], hardware);
@@ -202,5 +210,5 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
   handle.position.set(sashFaceX - .001, handleY, handleZ - .011);
   handle.castShadow = handle.receiveShadow = true;
   group.add(handle);
-  return { group, lights, sillTop };
+  return { group, exteriorLight, sillTop };
 }

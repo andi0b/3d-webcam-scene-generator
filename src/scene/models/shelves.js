@@ -2,12 +2,15 @@ import * as THREE from 'three';
 import { box, material, oakBox } from '../primitives.js';
 import { createBook } from './book.js';
 import { createPlant } from './plant.js';
+import { createRadio } from './radio.js';
 
-export function createShelves(wood) {
+export function createShelves(wood, radioWood) {
   const group = new THREE.Group();
   group.name = 'shelves';
-  oakBox(group, [1.65, .065, .34], [0, 2.765, 0], wood, .014);
-  oakBox(group, [.98, .065, .30], [.09, 1.865, -.02], wood, .014);
+  const lowerShelfY = 1.865;
+  const shelfThickness = .065;
+  oakBox(group, [1.65, shelfThickness, .34], [0, 2.765, 0], wood, .014);
+  oakBox(group, [.98, shelfThickness, .30], [.09, lowerShelfY, -.02], wood, .014);
   // Shallow shadow gaps suggest floating mounts.
   const mount = material('#57483c', .85);
   box(group, [1.52, .018, .025], [0, 2.72, -.15], mount);
@@ -24,12 +27,12 @@ export function createShelves(wood) {
   }
   const pothos = createPlant({ seed: 8031, scale: .72, trailing: true });
   pothos.position.set(-.53, 2.8, .04);
-  const lowerPlant = createPlant({ seed: 7920, scale: .58 });
-  lowerPlant.position.set(.12, 1.9, .02);
+  const radio = createRadio(radioWood);
+  radio.position.set(.09, lowerShelfY + shelfThickness / 2, -.015);
 
   const wash = new THREE.RectAreaLight('#ffce92', 3.5, 1.4, .055);
   wash.position.set(0, 2.72, .13);
   wash.lookAt(0, 1.9, -.16);
-  group.add(pothos, lowerPlant, wash);
+  group.add(pothos, radio, wash);
   return { group, wash };
 }

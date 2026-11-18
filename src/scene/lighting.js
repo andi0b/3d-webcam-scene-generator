@@ -41,14 +41,20 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
   const fill = new THREE.RectAreaLight('#f1ede4', .8, 3, 2);
   fill.position.set(0, 2.4, 1.5);
   fill.lookAt(0, 1.7, -3);
-  scene.add(sun, sun.target, fill);
+  // Broad sources approximate diffuse light scattered by the room surfaces.
+  const wallBounceLight = new THREE.RectAreaLight('#f5eee4', 0, 5.8, 3.1);
+  wallBounceLight.position.set(.2, 2, 2.85);
+  const floorBounceLight = new THREE.RectAreaLight('#f0e3cf', 0, 5.8, 4.4);
+  floorBounceLight.position.set(.2, .035, -.2);
+  floorBounceLight.rotation.x = Math.PI / 2;
+  scene.add(sun, sun.target, fill, wallBounceLight, floorBounceLight);
   shelfLamp.light.color.set(warm2700K);
   shelfWash.color.set(warm2700K);
   shelfLamp.globe.emissive.set(warm2700K);
   const exteriorLight = sideWindow.exteriorLight;
   const shadowLights = [ceiling.light, sun, exteriorLight];
   const rasterLights = [
-    ...shadowLights, clerestory.light, deskLamp.light, shelfLamp.light, shelfWash, fill,
+    ...shadowLights, clerestory.light, deskLamp.light, shelfLamp.light, shelfWash, fill, wallBounceLight, floorBounceLight,
   ];
 
   return {
@@ -96,6 +102,12 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
       shelfLamp.light.intensity = shelfOn ? 5 : 0;
       shelfWash.intensity = shelfOn ? 8 : 0;
       fill.intensity = fillOn ? (isNight ? .12 : .8) : 0;
+      // Weight the scene's light sources by their contribution to broad room illumination.
+      const bounceIntensity = .16 * sun.intensity + .023 * exteriorLight.intensity
+        + .018 * ceiling.light.intensity + .002 * deskLamp.light.intensity
+        + .012 * shelfWash.intensity + .075 * fill.intensity;
+      wallBounceLight.intensity = .60 * bounceIntensity;
+      floorBounceLight.intensity = .30 * bounceIntensity;
       // The tracer picks from visible lights uniformly. Disabled lights would waste samples.
       for (const light of rasterLights) {
         light.visible = light.intensity > 0;

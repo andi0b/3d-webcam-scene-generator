@@ -4,7 +4,7 @@ import { randomSource } from '../random-source.js';
 export const FLOOR_TOP = -.0175;
 
 export function createAshFloor(loadSurface) {
-  const material = new THREE.MeshStandardMaterial({ roughness: .62 });
+  const material = new THREE.MeshStandardMaterial({ roughness: .52 });
   loadSurface(material, 'white-ash.jpg', .5, [185, 167, 143]);
   const positions = [], uvs = [], indices = [];
   const random = randomSource(8619);

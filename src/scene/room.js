@@ -94,10 +94,11 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
   chair.scale.multiplyScalar(1.656);
   const runner = chair.getObjectByName('chair-arm-1');
   chair.updateMatrixWorld(true);
-  chair.position.set(-1.478, FLOOR_TOP - new THREE.Box3().setFromObject(runner).min.y, -1.528);
-  chair.rotation.y = .40 - Math.PI / 3;
+  chair.position.set(-1.748, FLOOR_TOP - new THREE.Box3().setFromObject(runner).min.y, -1.688);
+  chair.rotation.y = .40 + Math.PI / 6;
   const readingTable = createReadingTable(wood);
-  readingTable.position.set(-2.694, 0, -2.344);
+  // Set the table between the seated person's left arm and the back wall.
+  readingTable.position.set(-.95, 0, -2.54);
   const rollup = createRollup();
   rollup.position.set(3.32, FLOOR_TOP, .08);
   rollup.rotation.y = -1.32;

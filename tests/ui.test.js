@@ -102,4 +102,9 @@ test('ceiling and lamp controls update the room lighting', async () => {
   await fireEvent.click(view.getByRole('switch', { name: 'Shelf light' }));
   expect(view.getByText('Neutral light · 4000 K')).toBeTruthy();
   await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({ ceiling: 'high', shelf: false })));
+  const ceilingCard = view.getByRole('radiogroup', { name: 'Ceiling light' }).closest('.ceiling-control');
+  expect(ceilingCard.getAttribute('data-active')).toBe('true');
+  await fireEvent.click(view.getByRole('radio', { name: 'Off' }));
+  expect(ceilingCard.getAttribute('data-active')).toBe('false');
+  expect(view.getByText('Ceiling light is off.')).toBeTruthy();
 });

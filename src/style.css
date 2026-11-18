@@ -173,22 +173,29 @@ aside[inert],.render-quality [inert]{opacity:.55}
 .mood-options button:focus-visible{outline:2px solid #526b47;outline-offset:2px}
 .mood-choice.paused{opacity:.5}
 @media(pointer:coarse){.mood-options button{min-height:44px}}
-.ceiling-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px;color:#394a35;font-size:11px;font-weight:600}
+.ceiling-control{padding:0 9px;border:1px solid #d8dfd3;border-radius:6px;background:transparent}
+.ceiling-control[data-active="true"]{border-color:#b7c7ae}
+.ceiling-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;color:#394a35;font-size:11px;font-weight:600}
 .ceiling-temperature{color:#697b63;font-size:10px;font-weight:400;text-align:right}
-.ceiling-control .sdk-segments{gap:2px;padding:3px;border-radius:6px;background:#e0e7dc}
-.ceiling-control .sdk-segments button{min-height:34px;padding:6px 3px;border:0;border-radius:4px;background:transparent;color:#52654d;font-size:11px}
-.ceiling-control .sdk-segments button[data-checked]{background:#fff;color:#354a30;box-shadow:0 1px 3px #344b2a18}
+.ceiling-control .sdk-segments{gap:0}
+.ceiling-control .sdk-segments button{position:relative;min-height:37px;padding:8px 3px;border:0;border-radius:0;background:transparent;color:#697b63;font-size:11px}
+.ceiling-control .sdk-segments button[data-checked]{color:#354a30;font-weight:700}
+.ceiling-control .sdk-segments button[data-checked] span{padding:4px 10px;border-radius:12px;background:#e4eade}
+.ceiling-control[data-active="true"] .sdk-segments button[data-checked] span{background:#d6e2d0;color:#30482d}
+.ceiling-control .sdk-segments button:focus-visible{outline:2px solid #526b47;outline-offset:-3px;border-radius:4px}
 .lamp-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:10px}
 @media(pointer:coarse){.ceiling-control .sdk-segments button{min-height:44px}}
 .ceiling-label{display:inline-flex;align-items:center;gap:6px}
-.ceiling-label svg{color:#71866a}
+.ceiling-label svg{flex:none;color:#7b8c75}
+.ceiling-control[data-active="true"] .ceiling-label svg{color:#a5793b;filter:drop-shadow(0 2px 5px #d6ad53aa) drop-shadow(0 0 9px #e2c77b99)}
 .lamp-controls{gap:8px}
-.lamp-controls .lamp-toggle[data-slot="switch"]{display:flex;align-items:center;gap:6px;width:100%;height:auto;min-height:40px;margin:0;padding:8px 9px;border:1px solid #d8dfd3;border-radius:6px;background:transparent;color:#596956;text-align:left;font:500 11px 'DM Sans',sans-serif}
-.lamp-controls .lamp-toggle[data-checked]{border-color:#bac9b3;background:#edf2e9;color:#344b30}
+.lamp-controls .lamp-toggle[data-slot="switch"]{display:flex;align-items:center;gap:6px;width:100%;height:auto;min-height:40px;margin:0;padding:8px 9px;border:1px solid #d8dfd3;border-radius:6px;background:transparent;color:#394a35;text-align:left;font:500 11px 'DM Sans',sans-serif}
+.lamp-controls .lamp-toggle[data-checked]{border-color:#b7c7ae}
 .lamp-toggle svg{flex:none;color:#7b8c75}
-.lamp-toggle[data-checked] svg{color:#a5793b}
+.lamp-toggle[data-checked] svg{color:#a5793b;filter:drop-shadow(0 2px 5px #d6ad53aa) drop-shadow(0 0 9px #e2c77b99)}
 .lamp-name{flex:1;min-width:0;white-space:nowrap}
-.lamp-state{font-size:10px;font-weight:600;color:#697c64}
-.lamp-toggle[data-unchecked] .lamp-state{color:#687568}
+.lamp-state{font-size:10px;font-weight:600;color:#687568}
+.lamp-toggle[data-checked] .lamp-state{color:#405f3a;font-weight:700}
+.lamp-toggle[data-checked] .lamp-state::before{display:inline-block;width:6px;height:6px;margin-right:5px;border-radius:50%;background:#718b68;vertical-align:1px;content:''}
 .lamp-toggle:focus-visible{outline:2px solid #526b47;outline-offset:3px}
 @media(max-width:330px){.lamp-controls{grid-template-columns:1fr}}

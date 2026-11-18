@@ -103,8 +103,8 @@
       {#if !settings.outside}<p class="control-note">Weather is paused while Outside light is off in Advanced settings.</p>{/if}
     </div>
     <div class="section"><div class="section-title"><span>03</span><h2>Room lighting</h2></div>
-      <div class="ceiling-control"><div class="ceiling-heading"><span class="ceiling-label"><LampCeiling size={17} strokeWidth={1.7} aria-hidden="true" />Ceiling light</span><span class="ceiling-temperature">{ceilingNote}</span></div><ChoiceGroup label="Ceiling light" description={ceilingNote} options={options.ceiling} bind:value={settings.ceiling} /></div>
-      <div class="lamp-controls"><LampSwitch label="Desk lamp" icon={LampDesk} bind:checked={settings.desk} /><LampSwitch label="Shelf light" icon={Lightbulb} bind:checked={settings.shelf} /></div>
+      <div class="ceiling-control" data-active={settings.ceiling !== 'off'}><div class="ceiling-heading"><span class="ceiling-label"><LampCeiling size={18} strokeWidth={1.7} aria-hidden="true" />Ceiling light</span><span class="ceiling-temperature">{ceilingNote}</span></div><ChoiceGroup label="Ceiling light" description={ceilingNote} options={options.ceiling} bind:value={settings.ceiling} /></div>
+      <div class="lamp-controls"><LampSwitch label="Shelf light" icon={Lightbulb} bind:checked={settings.shelf} /><LampSwitch label="Desk lamp" icon={LampDesk} bind:checked={settings.desk} /></div>
     </div>
     <div class="section camera"><div class="section-title"><span>04</span><h2>Find your angle</h2><Button onclick={resetCamera}><RotateCcw size={13} aria-hidden="true" /> Reset camera</Button></div>
       <p class="camera-help">Match your webcam position and choose how much of the room to show.</p>

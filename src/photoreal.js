@@ -14,7 +14,7 @@ export const EXPORT_PRESETS = {
 
 const exportCancelled = Symbol('export cancelled');
 
-export function createPhotoreal(renderer, scene, camera, preview, status, reportExport, texturesReady) {
+export function createPhotoreal(renderer, scene, camera, preview, report, reportExport, texturesReady) {
   const gl = renderer.getContext();
   let tracer, denoiser, oidnPreview, library, starting;
   let webGpuUnavailable = false;
@@ -61,11 +61,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
     cleanFrame = undefined;
   }
 
-  function report(text) {
-    if (status.textContent !== text) status.textContent = text;
-  }
-
-  function checkPreviewContext(generation) {
+function checkPreviewContext(generation) {
     if (generation !== contextGeneration || gl.isContextLost()) {
       throw new Error('The WebGL preview context was lost.');
     }

@@ -3,26 +3,9 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 import { createPhotoreal } from './photoreal.js';
 import { createPipeline } from './render-pipeline.js';
 import { createRoom } from './scene/room.js';
-import { createExportUI } from './export-ui.js';
 
-export async function startStudio() {
-  const viewport = document.querySelector('#viewport');
-  const loadingStatus = document.querySelector('#preview-loading');
-  const renderStatus = document.querySelector('#render-status');
-  const exportUI = createExportUI();
-  const sidebar = document.querySelector('aside');
-  const renderModes = document.querySelector('.render-quality [role=group]');
-  const fastMode = document.querySelector('#quality-fast');
-  const realisticMode = document.querySelector('#quality-real');
-  const exportButton = document.querySelector('#export');
-  const exportQuality = document.querySelector('#export-quality');
-  const exportResolution = document.querySelector('#export-resolution');
-  const webcamNoise = document.querySelector('#webcam-noise');
-  const cancelExport = document.querySelector('#cancel-render');
-  const guide = document.querySelector('#guide');
-  const lightControls = ['ceiling-light', 'weather', 'outside', 'desk', 'shelf', 'fill'].map(id => document.getElementById(id));
-  const cameraSliders = ['horizontal', 'height', 'pan', 'tilt', 'zoom'].map(id => document.getElementById(id));
-
+export async function startStudio({ viewport, settings: initialSettings, onStatus, onReady, onRealisticReady, onExport }) {
+  let settings = { ...initialSettings };
   RectAreaLightUniformsLib.init();
   const renderer = new THREE.WebGLRenderer();
   renderer.setPixelRatio(.6);
@@ -45,7 +28,7 @@ export async function startStudio() {
     error => {
       if (error) {
         textureError = error;
-        renderStatus.textContent = error.message;
+        onStatus(error.message);
         return;
       }
       materialsDirty = true;
@@ -53,21 +36,16 @@ export async function startStudio() {
   );
   const camera = new THREE.PerspectiveCamera(48, 16 / 9, .1, 30);
   const pipeline = createPipeline(renderer, scene, camera, lighting.rasterLights);
-  const photoreal = createPhotoreal(renderer, scene, camera, pipeline, renderStatus, exportUI.report, ready);
-  photoreal.setNoise(webcamNoise.value);
-  webcamNoise.addEventListener('change', () => photoreal.setNoise(webcamNoise.value));
+  const photoreal = createPhotoreal(renderer, scene, camera, pipeline, onStatus, onExport, ready);
+  photoreal.setNoise(settings.noise);
   const gl = renderer.getContext();
   const renderSize = new THREE.Vector2();
 
   function applyLighting() {
-    const view = document.querySelector('[data-view].active').dataset.view;
-    const mood = document.querySelector('[data-preset].active').dataset.preset;
-    const [ceilingMode, weather, outside, deskOn, shelfOn, fillOn] = lightControls.map(
-      control => control.type === 'checkbox' ? control.checked : control.querySelector('input:checked').value,
-    );
-    const settings = [mood, ceilingMode, outside ? weather : '', outside, deskOn, shelfOn, fillOn];
-    const changed = settings.some((value, i) => value !== previousLighting?.[i]);
-    const materialChanged = settings.slice(0, -1).some((value, i) => value !== previousLighting?.[i]);
+    const { view, mood, ceiling: ceilingMode, weather, outside, desk: deskOn, shelf: shelfOn, fill: fillOn } = settings;
+    const lightingSettings = [mood, ceilingMode, outside ? weather : '', outside, deskOn, shelfOn, fillOn];
+    const changed = lightingSettings.some((value, i) => value !== previousLighting?.[i]);
+    const materialChanged = lightingSettings.slice(0, -1).some((value, i) => value !== previousLighting?.[i]);
     const previousBackdrop = backdrop.material.emissiveMap;
     lighting.update({ mood, ceilingMode, weather, outside, deskOn, shelfOn, fillOn });
     backdrop.update(view, mood);
@@ -77,13 +55,13 @@ export async function startStudio() {
     if (reflectionsChanged) pipeline.invalidateReflections({ immediate: changed && !firstFrame });
     if (backdropChanged || materialChanged) photoreal.invalidate('scene');
     else if (changed) photoreal.invalidate('lighting');
-    previousLighting = settings;
+    previousLighting = lightingSettings;
     lightingDirty = false;
     return reflectionsChanged;
   }
 
   function applyCamera() {
-    const [x, y, pan, tilt, fov] = cameraSliders.map(control => Number(control.value));
+    const { horizontal: x, height: y, pan, tilt, zoom: fov } = settings;
     camera.position.set(.3 + x * .5, 1.65 + y, 2.55);
     camera.fov = fov;
     camera.lookAt(-.55 + x * .35, 1.7 + y, -2.8);
@@ -107,10 +85,6 @@ export async function startStudio() {
     dirty = true;
   }
 
-  function showGuide() {
-    document.querySelector('#person-guide').classList.toggle('hidden', firstFrame || !guide.checked);
-  }
-
   function syncControls() {
     const reflectionsChanged = lightingDirty && applyLighting();
     if (cameraDirty) applyCamera();
@@ -123,57 +97,12 @@ export async function startStudio() {
     dirty ||= reflectionsChanged;
   }
 
-  for (const control of document.querySelectorAll('[data-view], [data-preset]')) {
-    control.addEventListener('click', () => { lightingDirty = true; });
-  }
-  for (const control of lightControls) {
-    control.addEventListener('change', () => { lightingDirty = true; });
-  }
-  for (const slider of cameraSliders) {
-    slider.addEventListener('input', () => { cameraDirty = true; });
-  }
-  document.querySelector('#reset').addEventListener('click', () => { cameraDirty = true; });
-  guide.addEventListener('change', showGuide);
-  new ResizeObserver(() => {
+  const resizeObserver = new ResizeObserver(() => {
     if (photoreal.exporting) return;
     resize();
     photoreal.invalidate('camera');
-  }).observe(viewport);
-
-  fastMode.onclick = () => setRealistic(false);
-  realisticMode.onclick = () => setRealistic(true);
-  function setRealistic(realistic) {
-    photoreal.setEnabled(realistic);
-    realisticMode.setAttribute('aria-pressed', String(realistic));
-    fastMode.setAttribute('aria-pressed', String(!realistic));
-    dirty = true;
-  }
-
-  exportButton.onclick = async () => {
-    if (photoreal.exporting) return;
-    syncControls();
-    exportButton.disabled = exportQuality.disabled = exportResolution.disabled = webcamNoise.disabled = true;
-    sidebar.inert = renderModes.inert = true;
-    exportUI.start();
-    try {
-      const png = await photoreal.exportImage(
-        exportQuality.querySelector('input:checked').value,
-        exportResolution.querySelector('input:checked').value,
-      );
-      if (png) exportUI.complete(png);
-    } catch (error) {
-      exportUI.error(error);
-    } finally {
-      exportButton.disabled = exportQuality.disabled = exportResolution.disabled = webcamNoise.disabled = false;
-      sidebar.inert = renderModes.inert = false;
-      exportUI.finish();
-      resize();
-    }
-  };
-  cancelExport.onclick = () => {
-    exportUI.cancelling();
-    photoreal.cancel();
-  };
+  });
+  resizeObserver.observe(viewport);
 
   renderer.domElement.addEventListener('webglcontextrestored', () => {
     pipeline.resetReflections();
@@ -211,19 +140,37 @@ export async function startStudio() {
       dirty = false;
       if (firstFrame) {
         firstFrame = false;
-        loadingStatus.hidden = true;
-        viewport.setAttribute('aria-busy', 'false');
-        renderStatus.textContent = textureError?.message ?? 'Fast preview';
-        exportButton.disabled = false;
-        showGuide();
+        onStatus(textureError?.message ?? 'Fast preview');
+        onReady();
         qualityAt = now + 160;
       }
     } else if (qualityStage >= 3 && pipeline.advanceReflections()) {
       return;
     }
     if (qualityStage >= 3) {
-      realisticMode.disabled = false;
+      onRealisticReady();
       photoreal.frame();
     }
   });
+  return {
+    update(next) {
+      const lightingKeys = ['view', 'mood', 'ceiling', 'weather', 'outside', 'desk', 'shelf', 'fill'];
+      const cameraKeys = ['horizontal', 'height', 'pan', 'tilt', 'zoom'];
+      lightingDirty ||= lightingKeys.some(key => settings[key] !== next[key]);
+      cameraDirty ||= cameraKeys.some(key => settings[key] !== next[key]);
+      if (settings.noise !== next.noise) photoreal.setNoise(next.noise);
+      if (settings.realistic !== next.realistic) {
+        photoreal.setEnabled(next.realistic);
+        dirty = true;
+      }
+      settings = { ...next };
+    },
+    async exportImage(quality, resolution) {
+      syncControls();
+      try { return await photoreal.exportImage(quality, resolution); }
+      finally { resize(); }
+    },
+    cancelExport() { photoreal.cancel(); },
+    dispose() { resizeObserver.disconnect(); renderer.setAnimationLoop(null); renderer.dispose(); },
+  };
 }

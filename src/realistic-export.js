@@ -1,3 +1,5 @@
+import { applyWebcamNoise } from './webcam-noise.js';
+
 export const EXPORT_SIZES = {
   '1080': { width: 1920, height: 1080 },
   '720': { width: 1280, height: 720 },
@@ -123,13 +125,23 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
       tracer.renderSample();
       checkActive();
       if (tracer.complete) {
-        // Present only the finished OIDN result on the export canvas.
-        // Request the PNG in the same frame, while that canvas image is current.
+        // Capture the finished OIDN result in the frame that presents it.
         report({ stage: 'finishing' });
         tracer.renderToCanvas = true;
         tracer.renderSample();
         checkActive();
-        const png = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        let output = canvas;
+        if (settings.noise === 'low' || settings.noise === 'high') {
+          output = document.createElement('canvas');
+          output.width = width;
+          output.height = height;
+          const context = output.getContext('2d', { alpha: false });
+          if (!context) throw new Error('The browser could not apply webcam noise.');
+          context.drawImage(canvas, 0, 0);
+          const image = context.getImageData(0, 0, width, height);
+          context.putImageData(applyWebcamNoise(image, settings.noise), 0, 0);
+        }
+        const png = await new Promise(resolve => output.toBlob(resolve, 'image/png'));
         checkActive();
         if (!png) throw new Error('The browser could not encode the rendered PNG.');
         return png;

@@ -17,6 +17,7 @@ export async function startStudio() {
   const exportButton = document.querySelector('#export');
   const exportQuality = document.querySelector('#export-quality');
   const exportResolution = document.querySelector('#export-resolution');
+  const webcamNoise = document.querySelector('#webcam-noise');
   const cancelExport = document.querySelector('#cancel-render');
   const guide = document.querySelector('#guide');
   const lightControls = ['ceiling-light', 'weather', 'outside', 'desk', 'shelf', 'fill'].map(id => document.getElementById(id));
@@ -53,6 +54,8 @@ export async function startStudio() {
   const camera = new THREE.PerspectiveCamera(48, 16 / 9, .1, 30);
   const pipeline = createPipeline(renderer, scene, camera, lighting.rasterLights);
   const photoreal = createPhotoreal(renderer, scene, camera, pipeline, renderStatus, exportUI.report, ready);
+  photoreal.setNoise(webcamNoise.value);
+  webcamNoise.addEventListener('change', () => photoreal.setNoise(webcamNoise.value));
   const gl = renderer.getContext();
   const renderSize = new THREE.Vector2();
 
@@ -149,7 +152,7 @@ export async function startStudio() {
   exportButton.onclick = async () => {
     if (photoreal.exporting) return;
     syncControls();
-    exportButton.disabled = exportQuality.disabled = exportResolution.disabled = true;
+    exportButton.disabled = exportQuality.disabled = exportResolution.disabled = webcamNoise.disabled = true;
     sidebar.inert = renderModes.inert = true;
     exportUI.start();
     try {
@@ -161,7 +164,7 @@ export async function startStudio() {
     } catch (error) {
       exportUI.error(error);
     } finally {
-      exportButton.disabled = exportQuality.disabled = exportResolution.disabled = false;
+      exportButton.disabled = exportQuality.disabled = exportResolution.disabled = webcamNoise.disabled = false;
       sidebar.inert = renderModes.inert = false;
       exportUI.finish();
       resize();

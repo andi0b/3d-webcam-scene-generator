@@ -1,10 +1,7 @@
 import { createOidnRenderer } from './realistic-export.js';
 
-export async function createOidnPreview(fastCanvas, scene, camera, settings, report) {
+export async function createOidnPreview(fastCanvas, scene, camera, settings, report, showFrame) {
   const canvas = document.createElement('canvas');
-  canvas.className = 'realistic-preview';
-  canvas.setAttribute('aria-hidden', 'true');
-  canvas.style.visibility = 'hidden';
   let failure;
   const pipeline = await createOidnRenderer(canvas, settings, error => { failure = error; });
   const { renderer, tracer } = pipeline;
@@ -22,7 +19,6 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
   try {
     tracer.setScene(scene, traceCamera);
     if (failure) throw failure;
-    fastCanvas.after(canvas);
   } catch (error) {
     await pipeline.dispose();
     throw error;
@@ -60,19 +56,14 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
         tracer.renderToCanvas = true;
         tracer.renderSample();
         if (failure) throw failure;
-        canvas.style.visibility = 'visible';
+        showFrame(canvas);
         rendering = false;
         report('Realistic preview ready');
       }
     },
-    hide() {
-      canvas.style.visibility = 'hidden';
-      pause();
-    },
     pause,
     dispose() {
       rendering = false;
-      canvas.remove();
       return pipeline.dispose();
     },
   };

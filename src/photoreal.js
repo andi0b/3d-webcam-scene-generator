@@ -1,6 +1,7 @@
 import { createGuidedDenoiser } from './denoise.js';
 import { EXPORT_SIZES, renderRealisticExport } from './realistic-export.js';
 import { createOidnPreview } from './realistic-preview.js';
+import { applyWebcamNoise } from './webcam-noise.js';
 
 export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 };
 const OIDN_PREVIEW_SETTINGS = { samples: 12, scale: .75, bounces: 4 };
@@ -21,6 +22,44 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
   let cancelPreparation;
   let pending = true, materialsChanged = true, lightsChanged = true, changed = performance.now();
   let contextGeneration = 0;
+  let noise = 'none', frameCanvas, frameContext, cleanFrame;
+
+  function updateFrame() {
+    if (!cleanFrame) return;
+    const frame = noise === 'none' ? cleanFrame : frameContext.createImageData(cleanFrame);
+    if (frame !== cleanFrame) {
+      frame.data.set(cleanFrame.data);
+      applyWebcamNoise(frame, noise);
+    }
+    frameContext.putImageData(frame, 0, 0);
+  }
+
+  function showFrame(source) {
+    if (!frameCanvas) {
+      const canvas = document.createElement('canvas');
+      frameContext = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      if (!frameContext) throw new Error('The browser could not capture the realistic preview.');
+      frameCanvas = canvas;
+      frameCanvas.className = 'realistic-preview';
+      frameCanvas.setAttribute('aria-hidden', 'true');
+      renderer.domElement.after(frameCanvas);
+    }
+    const { width, height } = source;
+    if (frameCanvas.width !== width || frameCanvas.height !== height) {
+      frameCanvas.width = width;
+      frameCanvas.height = height;
+    }
+    // Capture the finished GPU frame before the browser presents or clears it.
+    frameContext.drawImage(source, 0, 0);
+    cleanFrame = frameContext.getImageData(0, 0, width, height);
+    if (noise !== 'none') updateFrame();
+    frameCanvas.hidden = false;
+  }
+
+  function hideFrame() {
+    if (frameCanvas) frameCanvas.hidden = true;
+    cleanFrame = undefined;
+  }
 
   function report(text) {
     if (status.textContent !== text) status.textContent = text;
@@ -43,6 +82,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
   }
 
   function releaseTracer() {
+    hideFrame();
     oidnPreview?.dispose().catch(error => console.error('Realistic preview cleanup failed', error));
     oidnPreview = null;
     denoiser?.dispose();
@@ -62,7 +102,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
         if (exporting) return;
         if (navigator.gpu && !webGpuUnavailable) {
           try {
-            const candidate = await createOidnPreview(renderer.domElement, scene, camera, OIDN_PREVIEW_SETTINGS, report);
+            const candidate = await createOidnPreview(renderer.domElement, scene, camera, OIDN_PREVIEW_SETTINGS, report, showFrame);
             if (generation !== contextGeneration || gl.isContextLost() || exporting) {
               await candidate.dispose();
               checkPreviewContext(generation);
@@ -150,16 +190,25 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
       cancelled = true;
       cancelPreparation?.(exportCancelled);
     },
+    setNoise(level) {
+      if (noise === level) return;
+      noise = level;
+      updateFrame();
+    },
     setEnabled(value) {
       enabled = value;
       failed = false;
       changed = performance.now();
       pending = true;
-      if (!value) oidnPreview?.hide();
+      if (!value) {
+        hideFrame();
+        oidnPreview?.pause();
+      }
       if (!value && !gl.isContextLost()) report('Fast preview');
     },
     invalidate(kind = 'scene') {
-      oidnPreview?.hide();
+      hideFrame();
+      oidnPreview?.pause();
       if (enabled && oidnPreview && !exporting) report('Updating realistic preview…');
       pending = true;
       materialsChanged ||= kind === 'scene';
@@ -190,6 +239,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
         tracer.renderSample();
         if (tracer.samples >= PREVIEW_SETTINGS.samples) {
           denoiser.render(tracer.target.texture, tracer.target.width, tracer.target.height);
+          showFrame(renderer.domElement);
           report('WebGL realistic preview ready · export adds detail');
         } else {
           report(tracer.isCompiling ? 'Preparing realistic lighting…' : `Refining light · ${Math.floor(tracer.samples)} / ${PREVIEW_SETTINGS.samples}`);
@@ -202,6 +252,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
       if (exporting) return;
       exporting = true;
       cancelled = false;
+      const exportNoise = noise;
       try {
         oidnPreview?.pause();
         reportExport({ stage: 'preparing' });
@@ -211,7 +262,7 @@ export function createPhotoreal(renderer, scene, camera, preview, status, report
         ]);
         cancelPreparation = null;
         checkCancelled();
-        const settings = EXPORT_PRESETS[preset] ?? EXPORT_PRESETS.quick;
+        const settings = { ...(EXPORT_PRESETS[preset] ?? EXPORT_PRESETS.quick), noise: exportNoise };
         const dimensions = EXPORT_SIZES[resolution] ?? EXPORT_SIZES['1080'];
         const exportCamera = camera.clone();
         exportCamera.aspect = dimensions.width / dimensions.height;

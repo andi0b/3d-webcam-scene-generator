@@ -8,8 +8,10 @@ export function createShelves(wood, radioWood) {
   const group = new THREE.Group();
   group.name = 'shelves';
   const lowerShelfY = 1.865;
+  const upperShelfY = 2.765;
   const shelfThickness = .065;
-  oakBox(group, [1.65, shelfThickness, .34], [0, 2.765, 0], wood, .014);
+  const upperSurfaceY = upperShelfY + shelfThickness / 2;
+  oakBox(group, [1.65, shelfThickness, .34], [0, upperShelfY, 0], wood, .014);
   oakBox(group, [.98, shelfThickness, .30], [.09, lowerShelfY, -.02], wood, .014);
   // Shallow shadow gaps suggest floating mounts.
   const mount = material('#57483c', .85);
@@ -22,7 +24,7 @@ export function createShelves(wood, radioWood) {
     const book = createBook({
       title, color: colors[index], height: .36 + (index % 3) * .037, lean: index === 4 ? -.08 : 0,
     });
-    book.position.set(-.08 + index * .145, 2.8, .04);
+    book.position.set(-.105 + index * .145, upperSurfaceY + .06 * Math.abs(Math.sin(book.rotation.z)), .04);
     group.add(book);
   }
   const pothos = createPlant({ seed: 8031, scale: .72, trailing: true });
@@ -34,5 +36,5 @@ export function createShelves(wood, radioWood) {
   wash.position.set(0, 2.72, .13);
   wash.lookAt(0, 1.9, -.16);
   group.add(pothos, radio, wash);
-  return { group, wash };
+  return { group, wash, upperSurfaceY };
 }

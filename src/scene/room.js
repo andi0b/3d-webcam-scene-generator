@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createLighting } from './lighting.js';
 import { material } from './primitives.js';
 import { createBirchFinish, createTextureLoader } from './surface-textures.js';
+import { FLOOR_TOP } from './models/ash-floor.js';
 import { createBackdrop } from './models/backdrop.js';
 import { createCeilingFixture } from './models/ceiling-fixture.js';
 import { createClerestory } from './models/clerestory.js';
@@ -12,6 +13,7 @@ import { createOutdoorBranches } from './models/outdoor-branches.js';
 import { createPlant } from './models/plant.js';
 import { createReadingChair } from './models/reading-chair.js';
 import { createReadingTable } from './models/reading-table.js';
+import { createRollup } from './models/rollup.js';
 import { createRoomShell, ROOM_HEIGHT } from './models/room-shell.js';
 import { createShelfLamp } from './models/shelf-lamp.js';
 import { createShelves } from './models/shelves.js';
@@ -56,7 +58,7 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
 
   const sideWindow = createSideWindow(sideOpening, loadSurface, darkWood);
   sideWindow.group.position.set(sideOpening.insideX, sideOpening.y, sideOpening.z);
-  const sillPlant = createPlant({ seed: 6333, scale: .8, trailing: true, overhang: .10 });
+  const sillPlant = createPlant({ seed: 6333, scale: .8, trailing: true, overhang: .10, potColor: '#ba896e' });
   // The scaled saucer extends 6.4 mm below the plant's origin.
   sillPlant.position.set(.29, sideWindow.sillTop + .0064, .85);
   sillPlant.rotation.y = Math.PI / 2;
@@ -76,7 +78,7 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
   const shelves = createShelves(wood, darkWood);
   shelves.group.position.set(-2.04, 0, -2.74);
   const shelfLamp = createShelfLamp(dark);
-  shelfLamp.group.position.set(.66, 2.82, .10);
+  shelfLamp.group.position.set(.694, shelves.upperSurfaceY, .025);
   shelves.group.add(shelfLamp.group);
   const relief = createMountainRelief(birch, dark, filename => loadRoomTexture(filename, { fallback: [91, 82, 73] }));
   relief.position.set(1.40, 1.99, -2.855);
@@ -90,11 +92,16 @@ export function createRoom(assets, anisotropy, onTextureChanged) {
 
   const chair = createReadingChair(birch);
   chair.scale.multiplyScalar(1.656);
-  // Lower the chair so the runners meet the floorboards.
-  chair.position.set(-1.478, -.0583, -1.528);
+  const runner = chair.getObjectByName('chair-arm-1');
+  chair.updateMatrixWorld(true);
+  chair.position.set(-1.478, FLOOR_TOP - new THREE.Box3().setFromObject(runner).min.y, -1.528);
   chair.rotation.y = .40 - Math.PI / 3;
   const readingTable = createReadingTable(wood);
   readingTable.position.set(-2.694, 0, -2.344);
+  const rollup = createRollup();
+  rollup.position.set(3.32, FLOOR_TOP, .08);
+  rollup.rotation.y = -1.32;
+  scene.add(rollup);
   const ceiling = createCeilingFixture();
   ceiling.group.position.set(-.45, 3.90, -1.22);
   scene.add(desk, chair, readingTable, ceiling.group);

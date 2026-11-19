@@ -109,6 +109,7 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
   sillWood.normalScale.setScalar(1.35);
   const hardware = material('#4b4b46', .32, .72);
   const glazingSeal = material('#46382e', .82);
+  const glassSpacer = material('#777a75', .5, .65);
   loadSurface(sashWood, 'oak.png', 1.25, [155, 122, 86]);
 
   function addFrame({ x, depth, bottom, top, minZ, maxZ, profile, bevel, bottomRail = true }) {
@@ -147,8 +148,9 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
   const sashFaceX = sashOuterX + sashDepth;
   const sashHalfWidth = width / 2 - .049;
   const glassMaterial = new THREE.MeshPhysicalMaterial({
-    color: '#d8e1df', transparent: true, opacity: .035, roughness: .06,
-    envMapIntensity: .5, side: THREE.DoubleSide, depthWrite: false,
+    // Thin panes transmit the view while reflecting more light at grazing angles.
+    color: '#f6faf8', transmission: 1, opacity: 1, roughness: .003,
+    ior: 1.5, thickness: 0, side: THREE.DoubleSide,
   });
   const sashHeight = sash.top - sash.bottom;
   const y = (sash.top + sash.bottom) / 2;
@@ -165,10 +167,21 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
     }
     const paneWidth = innerWidth - sealWidth;
     const paneHeight = innerHeight - sealWidth;
-    const glass = new THREE.Mesh(new THREE.PlaneGeometry(paneWidth, paneHeight), glassMaterial);
-    glass.rotation.y = Math.PI / 2;
-    glass.position.set(glassX, y, z);
-    group.add(glass);
+    // A narrow spacer closes the air gap at the perimeter of the insulated unit.
+    const spacerWidth = .006;
+    for (const edge of [-1, 1]) {
+      box(group, [.016, paneHeight, spacerWidth], [glassX, y, z + edge * (paneWidth - spacerWidth) / 2], glassSpacer);
+      box(group, [.016, spacerWidth, paneWidth - 2 * spacerWidth], [glassX, y + edge * (paneHeight - spacerWidth) / 2, z], glassSpacer);
+    }
+    const glassGeometry = new THREE.PlaneGeometry(paneWidth, paneHeight);
+    // Two panes with a 16 mm insulating gap, recessed within the sash.
+    for (const offset of [-.008, .008]) {
+      const glass = new THREE.Mesh(glassGeometry, glassMaterial);
+      glass.name = 'window-glass';
+      glass.rotation.y = Math.PI / 2;
+      glass.position.set(glassX + offset, y, z);
+      group.add(glass);
+    }
   }
   // The path tracers sample this broad disc, while Fast preview uses its shadow map.
   const exteriorLight = new THREE.SpotLight('#ffffff', 0, 0, Math.PI / 3, .35, 1);
@@ -192,7 +205,8 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
     }
   }
 
-  const handleMetal = material('#252729', .34, .52);
+  // Black powder-coated metal has a satin dielectric finish over the metal.
+  const handleMetal = material('#414447', .48, .15);
   const handleY = 1.03, handleZ = -.025;
   roundedBox(group, [.018, .126, .029], [sashFaceX + .008, handleY, handleZ], handleMetal, .003, 2);
   const handleProfile = new THREE.Shape();

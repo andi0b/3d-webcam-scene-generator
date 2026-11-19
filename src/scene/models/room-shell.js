@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { box, material } from '../primitives.js';
-import { plasterNormalMap } from '../surface-textures.js';
+import { exteriorPlasterMaps, plasterNormalMap } from '../surface-textures.js';
 import { createAshFloor } from './ash-floor.js';
 
 export const ROOM_HEIGHT = 3.95;
@@ -12,6 +12,8 @@ export function createRoomShell(sideOpening, rearOpening, loadSurface) {
   group.name = 'room-shell';
   const wall = material('#e1d7c9');
   wall.normalMap = plasterNormalMap();
+  const exteriorPlaster = material('#ffffff');
+  Object.assign(exteriorPlaster, exteriorPlasterMaps());
   const ceiling = material('#ffffff', .91);
   loadSurface(ceiling, 'board-formed-concrete.jpg', .55, [167, 160, 147]);
 
@@ -38,7 +40,8 @@ export function createRoomShell(sideOpening, rearOpening, loadSurface) {
     depth: sideOpening.thickness,
     bevelEnabled: false,
   });
-  const sideWall = new THREE.Mesh(sideGeometry, wall);
+  // ExtrudeGeometry assigns its caps to material 0 and the opening reveals to 1.
+  const sideWall = new THREE.Mesh(sideGeometry, [wall, exteriorPlaster]);
   sideWall.name = 'side-wall';
   sideWall.position.x = sideOpening.insideX;
   sideWall.rotation.y = -Math.PI / 2;

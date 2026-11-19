@@ -1,4 +1,5 @@
 import { applyWebcamNoise } from './webcam-noise.js';
+import { withoutPreviewOnlyLights } from './realistic-lights.js';
 
 export const EXPORT_SIZES = {
   '1080': { width: 1920, height: 1080 },
@@ -13,8 +14,8 @@ export async function createOidnRenderer(canvas, settings, onFailure, checkCance
     throw new Error('Realistic lighting requires WebGPU. Open Roomlight on localhost or HTTPS in a browser with WebGPU enabled.');
   }
 
-  const [{ WebGPURenderer, ACESFilmicToneMapping }, { WebGPUPathTracer, OIDNDenoiser }, { initUNetFromURL }] =
-    await Promise.all([import('three/webgpu'), import('three-gpu-pathtracer/webgpu'), import('oidn-webgpu')]);
+  const [{ WebGPURenderer, CustomToneMapping }, { acesFilmicToneMapping, dot, vec3 }, { WebGPUPathTracer, OIDNDenoiser }, { initUNetFromURL }] =
+    await Promise.all([import('three/webgpu'), import('three/tsl'), import('three-gpu-pathtracer/webgpu'), import('oidn-webgpu')]);
   checkCancelled();
 
   const renderer = new WebGPURenderer({ canvas, alpha: false, antialias: false, trackTimestamp: true });
@@ -57,7 +58,15 @@ export async function createOidnRenderer(canvas, settings, onFailure, checkCance
       throw new Error('The browser could not start WebGPU on this GPU.');
     }
     renderer.setPixelRatio(1);
-    renderer.toneMapping = ACESFilmicToneMapping;
+    // Keep the ACES Filmic look in the shadows and midtones, but gently
+    // compress bright scene values before they reach its highlight shoulder.
+    renderer.library.addToneMapping((color, exposure) => {
+      const exposed = color.mul(exposure);
+      const luminance = dot(exposed, vec3(.2126, .7152, .0722));
+      const compression = luminance.sub(.7).max(0).mul(.75).add(1);
+      return acesFilmicToneMapping(exposed.div(compression), 1);
+    }, CustomToneMapping);
+    renderer.toneMapping = CustomToneMapping;
     renderer.toneMappingExposure = 1.05;
 
     tracer = new WebGPUPathTracer(renderer);
@@ -117,7 +126,7 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
     report({ stage: 'preparing' });
     await nextFrame();
     checkActive();
-    tracer.setScene(scene, camera);
+    withoutPreviewOnlyLights(scene, () => tracer.setScene(scene, camera));
     lastProgressAt = performance.now();
 
     while (true) {

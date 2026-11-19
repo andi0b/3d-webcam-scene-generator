@@ -1,4 +1,5 @@
 import { createOidnRenderer } from './realistic-export.js';
+import { withoutPreviewOnlyLights } from './realistic-lights.js';
 
 export async function createOidnPreview(fastCanvas, scene, camera, settings, report, showFrame) {
   const canvas = document.createElement('canvas');
@@ -17,7 +18,7 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
   });
 
   try {
-    tracer.setScene(scene, traceCamera);
+    withoutPreviewOnlyLights(scene, () => tracer.setScene(scene, traceCamera));
     if (failure) throw failure;
   } catch (error) {
     await pipeline.dispose();
@@ -41,7 +42,7 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
       if (materialsChanged) tracer.updateMaterials();
       if (lightsChanged) {
         scene.updateMatrixWorld(true);
-        tracer.updateLights();
+        withoutPreviewOnlyLights(scene, () => tracer.updateLights());
       }
       tracer.renderToCanvas = false;
       rendering = true;

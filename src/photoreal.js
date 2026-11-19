@@ -1,6 +1,7 @@
 import { createGuidedDenoiser } from './denoise.js';
 import { EXPORT_SIZES, renderRealisticExport } from './realistic-export.js';
 import { createOidnPreview } from './realistic-preview.js';
+import { withoutPreviewOnlyLights } from './realistic-lights.js';
 import { applyWebcamNoise } from './webcam-noise.js';
 
 export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 };
@@ -124,7 +125,7 @@ function checkPreviewContext(generation) {
         tracer.renderToCanvas = false;
         tracer.renderDelay = 0;
         tracer.filterGlossyFactor = .5;
-        tracer.setScene(scene, camera);
+        withoutPreviewOnlyLights(scene, () => tracer.setScene(scene, camera));
         checkPreviewContext(generation);
         denoiser = createGuidedDenoiser(renderer, preview, camera);
         pending = true;
@@ -150,7 +151,7 @@ function checkPreviewContext(generation) {
     scene.updateMatrixWorld(true);
     tracer.setCamera(camera);
     if (materialsChanged) tracer.updateMaterials();
-    if (lightsChanged) tracer.updateLights();
+    if (lightsChanged) withoutPreviewOnlyLights(scene, () => tracer.updateLights());
     materialsChanged = lightsChanged = false;
     pending = false;
   }

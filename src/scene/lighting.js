@@ -6,7 +6,7 @@ const ceilingModes = {
   off: { color: '#ffffff', intensity: 0, bounce: 0, glow: 0 },
   dimmed: { color: warm2700K, intensity: 12, bounce: .18, glow: .8 },
   low: { color: '#ffb367', intensity: 19.2, bounce: .288, glow: 1.28 },
-  high: { color: '#ffd3a6', intensity: 49.6, bounce: .64, glow: 3.84 },
+  high: { color: '#ffd3a6', intensity: 38.4, bounce: .576, glow: 2.56 },
 };
 const sunPresets = {
   day: { color: '#fff0d8', intensity: 4.1, direction: [-1, .49, .51], radius: .60 },
@@ -45,6 +45,7 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
   const wallBounceLight = new THREE.RectAreaLight('#f5eee4', 0, 5.8, 3.1);
   wallBounceLight.position.set(.2, 2, 2.85);
   const floorBounceLight = new THREE.RectAreaLight('#f0e3cf', 0, 5.8, 4.4);
+  wallBounceLight.userData.previewOnly = floorBounceLight.userData.previewOnly = true;
   floorBounceLight.position.set(.2, .035, -.2);
   floorBounceLight.rotation.x = Math.PI / 2;
   scene.add(sun, sun.target, fill, wallBounceLight, floorBounceLight);

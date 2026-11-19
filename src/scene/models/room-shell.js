@@ -1,11 +1,31 @@
 import * as THREE from 'three';
 import { box, material } from '../primitives.js';
 import { exteriorPlasterMaps, plasterNormalMap } from '../surface-textures.js';
-import { createAshFloor } from './ash-floor.js';
+import { createAshFloor, FLOOR_TOP } from './ash-floor.js';
 
 export const ROOM_HEIGHT = 3.95;
 const LEFT_X = -3.25, RIGHT_X = 4.05;
 const MIN_Z = -3, MAX_Z = 3;
+
+function addSkirting(group, finish, length, x, z, rotation) {
+  // Profile coordinates run from the wall towards the room. The softened
+  // back edge leaves a narrow shadow line along the wall at the top.
+  const profile = new THREE.Shape();
+  profile.moveTo(.001, 0);
+  profile.lineTo(.065, 0);
+  profile.lineTo(.065, .105);
+  profile.quadraticCurveTo(.065, .12, .052, .12);
+  profile.lineTo(.011, .12);
+  profile.quadraticCurveTo(.004, .12, .001, .107);
+  profile.lineTo(.001, 0);
+  const geometry = new THREE.ExtrudeGeometry(profile, { depth: length, bevelEnabled: false, curveSegments: 5 });
+  const skirting = new THREE.Mesh(geometry, finish);
+  skirting.name = 'skirting-board';
+  skirting.position.set(x, FLOOR_TOP - .002, z);
+  skirting.rotation.y = rotation;
+  skirting.castShadow = skirting.receiveShadow = true;
+  group.add(skirting);
+}
 
 export function createRoomShell(sideOpening, rearOpening, loadSurface) {
   const group = new THREE.Group();
@@ -77,7 +97,9 @@ export function createRoomShell(sideOpening, rearOpening, loadSurface) {
   box(group, [7.3, .09, 6.18], [.4, -.0665, 0], material('#9e9990', .76));
   group.add(createAshFloor(loadSurface));
   const trim = material('#e0d1ba');
-  box(group, [7.3, .14, .09], [.4, .05, -2.87], trim);
-  box(group, [.09, .14, 5.9], [-3.12, .05, 0], trim);
+  const leftWall = -3.16, rightWall = 3.56, backWall = -2.91;
+  addSkirting(group, trim, rightWall - leftWall, rightWall, backWall, -Math.PI / 2);
+  addSkirting(group, trim, MAX_Z - backWall - .065, leftWall, backWall + .065, 0);
+  addSkirting(group, trim, MAX_Z - backWall - .065, rightWall, MAX_Z, Math.PI);
   return group;
 }

@@ -152,6 +152,8 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
     color: '#f6faf8', transmission: 1, opacity: 1, roughness: .003,
     ior: 1.5, thickness: 0, side: THREE.DoubleSide,
   });
+  // The WebGL path tracer checks this material flag for shadow rays.
+  glassMaterial.castShadow = false;
   const sashHeight = sash.top - sash.bottom;
   const y = (sash.top + sash.bottom) / 2;
   box(group, [.022, sashHeight, .018], [glassX, y, 0], glazingSeal);
@@ -178,6 +180,8 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
     for (const offset of [-.008, .008]) {
       const glass = new THREE.Mesh(glassGeometry, glassMaterial);
       glass.name = 'window-glass';
+      // WebGPU shadow rays otherwise treat transmissive panes as opaque.
+      glass.visibleToShadowRays = false;
       glass.rotation.y = Math.PI / 2;
       glass.position.set(glassX + offset, y, z);
       group.add(glass);

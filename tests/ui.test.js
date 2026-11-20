@@ -49,20 +49,26 @@ test('agent can discover and change studio settings', async () => {
   await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({view:'mountains'})));
 });
 
-test('advanced camera settings expose manual and automatic exposure on the same slider', async () => {
+test('auto exposure starts enabled and Reset camera restores it at zero compensation', async () => {
   const view = render(App);
-  await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({ exposureEV: 0 })));
-  expect(view.queryByRole('slider', { name: 'Exposure' })).toBeNull();
+  const defaults = { autoExposure: true, exposureEV: 0 };
+  await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining(defaults)));
+  expect(controls.callbacks.settings).toMatchObject(defaults);
+  expect(view.queryByRole('slider', { name: 'Exposure compensation' })).toBeNull();
   await fireEvent.click(view.getByRole('button', { name: 'Advanced camera settings' }));
   expect(agent.snapshot().some(entry => entry.label === 'Auto exposure')).toBe(true);
-  const slider = view.getByRole('slider', { name: 'Exposure' });
+  const toggle = view.getByRole('switch', { name: 'Auto exposure' });
+  expect(toggle.getAttribute('aria-checked')).toBe('true');
+  const slider = view.getByRole('slider', { name: 'Exposure compensation' });
   expect(slider.getAttribute('aria-valuetext')).toBe('0.0 EV');
   await fireEvent.keyDown(slider, { key: 'ArrowRight' });
-  await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({ exposureEV: 0.1 })));
-  expect(slider.getAttribute('aria-valuetext')).toBe('+0.1 EV');
-  await fireEvent.click(view.getByRole('switch', { name: 'Auto exposure' }));
-  expect(view.getByRole('slider', { name: 'Exposure compensation' }).getAttribute('aria-valuetext')).toBe('+0.1 EV');
-  await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({ autoExposure: true, exposureEV: 0.1 })));
+  await fireEvent.click(toggle);
+  expect(view.getByRole('slider', { name: 'Exposure' }).getAttribute('aria-valuetext')).toBe('+0.1 EV');
+  await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({ autoExposure: false, exposureEV: 0.1 })));
+  await fireEvent.click(view.getByRole('button', { name: 'Reset camera' }));
+  expect(toggle.getAttribute('aria-checked')).toBe('true');
+  expect(view.getByRole('slider', { name: 'Exposure compensation' }).getAttribute('aria-valuetext')).toBe('0.0 EV');
+  await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining(defaults)));
 });
 
 test('export progress and cancellation restore the controls', async () => {

@@ -50,7 +50,8 @@
   let selectedTab = $state(hmrData?.selectedTab || 'camera');
   let activeCameraProfile = $state(hmrData?.activeCameraProfile || ''), activeDecorationProfile = $state(hmrData?.activeDecorationProfile || '');
   const hmrSettings = hmrData?.settings;
-  let settings = $state({ view:'city', mood:'day', weather:'sunny', ceiling:'low', desk:true, shelf:true, outside:true, fill:true, horizontal:0, height:0, tilt:0, pan:0, zoom:48, noise:'none', exposureEV:0, autoExposure:false, realistic:false, rollup:'retracted', frame1:'', frame2:'', rollupArtwork:'', ...hmrSettings });
+  const cameraDefaults = { horizontal:0, height:0, tilt:0, pan:0, zoom:48, autoExposure:true, exposureEV:0 };
+  let settings = $state({ view:'city', mood:'day', weather:'sunny', ceiling:'low', desk:true, shelf:true, outside:true, fill:true, ...cameraDefaults, noise:'none', realistic:false, rollup:'retracted', frame1:'', frame2:'', rollupArtwork:'', ...hmrSettings });
   const artworkFields = ['frame1', 'frame2', 'rollupArtwork'];
   let images = $state([]), imageError = $state(''), libraryReady = $state(false), libraryLoading = $state(true);
   let artworkError = $state('');
@@ -179,7 +180,7 @@
     }));
     return () => { disposed = true; imageChannel?.close(); imageChannel = undefined; studio?.dispose(); if (downloadUrl) URL.revokeObjectURL(downloadUrl); };
   });
-  function resetCamera() { Object.assign(settings, { horizontal:0, height:0, tilt:0, pan:0, zoom:48 }); }
+  function resetCamera() { Object.assign(settings, cameraDefaults); }
   function formatExposure(value) { return `${value > 0 ? '+' : ''}${value.toFixed(1)} EV`; }
   function reportExport({ stage, progress, message }) {
     if (cancelling && !['cancelling','cancelled','error'].includes(stage)) return;

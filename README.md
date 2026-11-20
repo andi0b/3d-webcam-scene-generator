@@ -10,13 +10,13 @@ A browser-based Three.js studio for composing still-image backgrounds for video 
 2. Adjust the camera position, angle, and field of view. Use the person guide to frame yourself in the scene.
 3. In Decoration, drop an image on a picture or the rollup to apply it, or drop images on the library to save them for later. You can also choose **Upload and use** in an artwork picker. Images are centered and cropped to fit.
 4. Save a camera angle or decoration look if you want to reuse it. Load, update, or delete it from its card. The app opens with its shipped settings until you load a saved setup.
-5. Export a PNG at 1920 × 1080, 1280 × 720, or 854 × 480 and import it as a virtual background in your meeting app. The person guide is excluded from the export.
+5. Export a PNG at 3072 × 1728 (3K), 1920 × 1080, 1280 × 720, or 854 × 480 and import it as a virtual background in your meeting app. The person guide is excluded from the export.
 
 Saved setups and uploaded images are stored in this browser on this device. Images larger than 2048 pixels on their longest side are resized when added. Clearing site data removes the local library and profiles.
 
-Fast preview uses WebGL. Realistic preview traces eight samples with three light bounces at 55% of the viewport width and height on WebGPU, then runs Open Image Denoise. If WebGPU cannot initialize, the preview uses WebGL at 45% resolution with guided filtering. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause.
+Fast preview uses WebGL. It starts at 60% of the viewport width and height and refines to one render pixel per CSS pixel, capped by the device pixel ratio. Realistic preview traces 12 samples with four light bounces at 75% of the preview canvas width and height on WebGPU, then denoises with Open Image Denoise and upscales with FSR1. If WebGPU cannot initialize, the preview uses WebGL at 45% of the viewport width and height with guided filtering. Camera and lighting changes show the fast preview immediately and restart tracing after a 200 ms pause.
 
-PNG export always uses realistic lighting in either preview mode and requires a WebGPU-capable browser on HTTPS or localhost. It traces at the selected resolution and runs Open Image Denoise with albedo and normal data. Quick uses 10 samples and four bounces, Detailed uses 48 samples and six bounces, and Maximum uses 96 samples and eight bounces. You can cancel during rendering or denoising.
+PNG export always uses realistic lighting in either preview mode and requires a WebGPU-capable browser on HTTPS or localhost. Quick uses 10 samples and four bounces at 50% of the selected width and height. Detailed uses 48 samples and six bounces at 80%. Both run Open Image Denoise with albedo and normal data, then use FSR1 to upscale to the selected size. Maximum uses 96 samples and eight bounces and denoises at the full output size. You can cancel during rendering or denoising.
 
 ## Run locally
 

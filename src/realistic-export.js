@@ -2,6 +2,7 @@ import { applyWebcamNoise } from './webcam-noise.js';
 import { withoutPreviewOnlyLights } from './realistic-lights.js';
 
 export const EXPORT_SIZES = {
+  '3k': { width: 3072, height: 1728 },
   '1080': { width: 1920, height: 1080 },
   '720': { width: 1280, height: 720 },
   '480': { width: 854, height: 480 },
@@ -14,7 +15,7 @@ export async function createOidnRenderer(canvas, settings, onFailure, checkCance
     throw new Error('Realistic lighting requires WebGPU. Open Roomlight on localhost or HTTPS in a browser with WebGPU enabled.');
   }
 
-  const [{ WebGPURenderer, CustomToneMapping }, { acesFilmicToneMapping, dot, vec3 }, { WebGPUPathTracer, OIDNDenoiser }, { initUNetFromURL }] =
+  const [{ WebGPURenderer, CustomToneMapping }, { acesFilmicToneMapping, dot, vec3 }, { WebGPUPathTracer, OIDNDenoiser, FSRUpscaler }, { initUNetFromURL }] =
     await Promise.all([import('three/webgpu'), import('three/tsl'), import('three-gpu-pathtracer/webgpu'), import('oidn-webgpu')]);
   checkCancelled();
 
@@ -70,6 +71,7 @@ export async function createOidnRenderer(canvas, settings, onFailure, checkCance
     renderer.toneMappingExposure = 1.05;
 
     tracer = new WebGPUPathTracer(renderer);
+    tracer.renderScale = settings.renderScale ?? 1;
     tracer.maxSamples = settings.samples;
     tracer.maxBounces = settings.bounces;
     tracer.renderDelay = 0;
@@ -90,6 +92,12 @@ export async function createOidnRenderer(canvas, settings, onFailure, checkCance
     });
     tracer.setDenoiser(denoiser);
     denoiser = null; // The tracer owns the attached denoiser.
+    if (tracer.renderScale < 1) {
+      const { Upscaler } = await import('@pmndrs/upscaler');
+      checkCancelled();
+      if (failure) throw failure;
+      tracer.setUpscaler(new FSRUpscaler({ Upscaler }));
+    }
     return { renderer, tracer, dispose };
   } catch (error) {
     await dispose();
@@ -134,7 +142,7 @@ export async function renderRealisticExport(scene, camera, settings, { width, he
       tracer.renderSample();
       checkActive();
       if (tracer.complete) {
-        // Capture the finished OIDN result in the frame that presents it.
+        // WebGPU canvas capture must start in the same frame as the final draw.
         report({ stage: 'finishing' });
         tracer.renderToCanvas = true;
         tracer.renderSample();

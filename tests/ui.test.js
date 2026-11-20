@@ -27,10 +27,10 @@ test('SDK controls update renderer settings and export selections', async () => 
   expect(view.queryByText('YOUR POSITION')).toBeNull();
   await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({ view:'forest', weather:'cloudy', desk:false, noise:'high' })));
   await fireEvent.click(view.getByRole('radio', { name: 'Detailed' }));
-  await fireEvent.click(view.getByRole('radio', { name: '720p' }));
+  await fireEvent.click(view.getByRole('radio', { name: '3K' }));
   controls.exportImage.mockResolvedValueOnce(null);
   await fireEvent.click(view.getByRole('button', { name: /Export PNG/ }));
-  await waitFor(() => expect(controls.exportImage).toHaveBeenCalledWith('detailed', '720'));
+  await waitFor(() => expect(controls.exportImage).toHaveBeenCalledWith('detailed', '3k'));
 });
 
 test('agent can discover and change studio settings', async () => {
@@ -40,8 +40,12 @@ test('agent can discover and change studio settings', async () => {
   const entries = agent.snapshot().filter(entry => !entry.offPage && entry.component !== 'more');
   expect(entries.filter(entry => !entry.label)).toEqual([]);
   for (const label of ['Window view','Mood','Weather','Ceiling light','Desk lamp','Preview quality','Webcam noise','Person guide','Export quality','Export resolution']) expect(entries.map(entry => entry.label)).toContain(label);
-  const result = await agent.act({ steps: [{ ref:'Window view', action:'setValue', args:['Mountains'] }] });
+  const result = await agent.act({ steps: [
+    { ref:'Window view', action:'setValue', args:['Mountains'] },
+    { ref:'Export resolution', action:'setValue', args:['3K'] },
+  ] });
   expect(result.ok, result.error?.message).toBe(true);
+  expect(view.getByRole('radio', { name: '3K' }).getAttribute('aria-checked')).toBe('true');
   await waitFor(() => expect(controls.update).toHaveBeenLastCalledWith(expect.objectContaining({view:'mountains'})));
 });
 

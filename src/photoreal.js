@@ -5,12 +5,12 @@ import { withoutPreviewOnlyLights } from './realistic-lights.js';
 import { applyWebcamNoise } from './webcam-noise.js';
 
 export const PREVIEW_SETTINGS = { samples: 8, scale: .45, bounces: 3, tiles: 2 };
-const OIDN_PREVIEW_SETTINGS = { samples: 12, scale: .75, bounces: 4 };
+const OIDN_PREVIEW_SETTINGS = { samples: 12, renderScale: .75, bounces: 4 };
 
 export const EXPORT_PRESETS = {
-  quick: { samples: 10, bounces: 4 },
-  detailed: { samples: 48, bounces: 6 },
-  maximum: { samples: 96, bounces: 8 },
+  quick: { samples: 10, bounces: 4, renderScale: 0.5 },
+  detailed: { samples: 48, bounces: 6, renderScale: 0.8 },
+  maximum: { samples: 96, bounces: 8, renderScale: 1 },
 };
 
 const exportCancelled = Symbol('export cancelled');

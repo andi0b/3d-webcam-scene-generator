@@ -9,7 +9,6 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
   const traceCamera = camera.clone();
   let rendering = false;
 
-  tracer.renderScale = settings.scale;
   tracer.addEventListener('progress', ({ stage, samples }) => {
     if (!rendering) return;
     if (stage === 'compiling') report('Preparing realistic lighting…');

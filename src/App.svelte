@@ -41,7 +41,7 @@
     weather: [{value:'sunny',label:'Sunny',icon:Sun}, {value:'cloudy',label:'Cloudy',icon:Cloud}, {value:'foggy',label:'Foggy',icon:CloudFog}],
     ceiling: [{value:'off',label:'Off'}, {value:'dimmed',label:'Dimmed'}, {value:'low',label:'Low'}, {value:'high',label:'High'}],
     quality: [{value:'quick',label:'Quick'}, {value:'detailed',label:'Detailed'}, {value:'maximum',label:'Maximum'}],
-    resolution: [{value:'480',label:'480p'}, {value:'720',label:'720p'}, {value:'1080',label:'1080p'}],
+    resolution: [{value:'480',label:'480p'}, {value:'720',label:'720p'}, {value:'1080',label:'1080p'}, {value:'3k',label:'3K'}],
     preview: [{value:'fast',label:'Fast'}, {value:'realistic',label:'Realistic'}],
     rollup: [{value:'retracted',label:'Retracted'}, {value:'extended',label:'Extended'}, {value:'absent',label:'Hidden'}],
     noise: [{value:'none',label:'None'}, {value:'low',label:'Low'}, {value:'high',label:'High'}],

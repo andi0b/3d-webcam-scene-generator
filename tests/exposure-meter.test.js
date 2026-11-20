@@ -20,8 +20,8 @@ test('the same bright patch lowers exposure only on the upper-right side of the 
   expect(upperRight).toBeLessThan(-1.5);
 });
 
-test('auto exposure caps boosts at +1 EV and keeps reducing exposure as luminance increases', () => {
-  expect(meter(() => .001)).toBe(1);
+test('auto exposure caps boosts at +0.5 EV and keeps reducing exposure as luminance increases', () => {
+  expect(meter(() => .001)).toBe(.5);
   expect(meter(() => 64)).toBeLessThan(-8);
   expect(meter(() => 4096)).toBeLessThan(meter(() => 512));
 });

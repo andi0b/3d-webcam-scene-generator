@@ -28,7 +28,7 @@ export function estimateExposureEV(pixels, width = meterWidth, height = meterHei
       const midtone = minimumLogLuminance + medianBin / 255 * logLuminanceRange;
       const highlight = minimumLogLuminance + bin / 255 * logLuminanceRange;
       const target = Math.min(Math.log2(.18 / exposureMultiplier()) - midtone, Math.log2(1.2 / exposureMultiplier()) - highlight);
-      return Math.min(1, target);
+      return Math.min(.5, target);
     }
   }
 }

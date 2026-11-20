@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { light6500K } from '../light-colors.js';
 import { box, material } from '../primitives.js';
 
 export function createClerestory({ width, height }) {
@@ -21,7 +22,7 @@ export function createClerestory({ width, height }) {
   });
   // The milky glazing blocks sharp sunlight and glows from diffuse daylight.
   box(group, [width, height, .024], [0, height / 2, 0], glass);
-  const light = new THREE.RectAreaLight('#ffffff', 0, width - 2 * railWidth, paneHeight);
+  const light = new THREE.RectAreaLight(light6500K, 0, width - 2 * railWidth, paneHeight);
   light.position.set(0, height / 2, -.022);
   group.add(light);
   return { group, light, glass };

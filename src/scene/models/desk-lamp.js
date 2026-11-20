@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { deskBulb2900K, deskLight2900K } from '../light-colors.js';
 import { cylinder, material, roundedBox, sphere } from '../primitives.js';
 
 function addArm(group, from, to, finish) {
@@ -42,9 +43,9 @@ export function createDeskLamp(dark) {
   shade.rotation.z = -.45;
   shade.castShadow = true;
   group.add(shade);
-  const bulb = new THREE.MeshStandardMaterial({ color: '#fff0d8', emissive: '#ffe0a4', emissiveIntensity: 1.5 });
+  const bulb = new THREE.MeshStandardMaterial({ color: deskBulb2900K, emissive: deskBulb2900K, emissiveIntensity: 1.5 });
   sphere(shade, .07, [0, -.065, 0], bulb).castShadow = false;
-  const light = new THREE.RectAreaLight('#ffcf95', 0, .26, .26);
+  const light = new THREE.RectAreaLight(deskLight2900K, 0, .26, .26);
   light.position.set(.14, .57, 0);
   light.lookAt(-.22, -.05, .05);
   group.add(light);

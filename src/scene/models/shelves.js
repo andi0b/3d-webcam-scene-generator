@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { light2700K } from '../light-colors.js';
 import { box, material, oakBox } from '../primitives.js';
 import { createBook } from './book.js';
 import { createPlant } from './plant.js';
@@ -32,7 +33,7 @@ export function createShelves(wood, radioWood) {
   const radio = createRadio(radioWood);
   radio.position.set(.09, lowerShelfY + shelfThickness / 2, -.015);
 
-  const wash = new THREE.RectAreaLight('#ffce92', 3.5, 1.4, .055);
+  const wash = new THREE.RectAreaLight(light2700K, 3.5, 1.4, .055);
   wash.position.set(0, 2.72, .13);
   wash.lookAt(0, 1.9, -.16);
   group.add(pothos, radio, wash);

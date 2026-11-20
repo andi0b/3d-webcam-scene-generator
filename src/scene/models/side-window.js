@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { light6500K } from '../light-colors.js';
 import { box, cylinder, material, roundedBox } from '../primitives.js';
 import { createGalvanizedFinish } from '../surface-textures.js';
 
@@ -188,7 +189,7 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
     }
   }
   // The path tracers sample this broad disc, while Fast preview uses its shadow map.
-  const exteriorLight = new THREE.SpotLight('#ffffff', 0, 0, Math.PI / 3, .35, 1);
+  const exteriorLight = new THREE.SpotLight(light6500K, 0, 0, Math.PI / 3, .35, 1);
   exteriorLight.position.set(-thickness - 2.65, height * .62, 0);
   exteriorLight.target.position.set(0, height * .48, 0);
   exteriorLight.radius = 1.4;

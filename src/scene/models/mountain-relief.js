@@ -39,7 +39,7 @@ export function createMountainRelief(wood, dark, loadImage) {
   group.name = 'mountain-relief';
   oakBox(group, [2.40, 1.28, .055], [0, 0, 0], wood, .009);
   box(group, [2.32, 1.20, .025], [0, 0, .037], dark);
-  const relief = createReliefMesh(2.28, 1.16, loadImage('alpine-relief.jpg'));
+  const relief = createReliefMesh(2.28, 1.16, loadImage('alpine-relief.webp'));
   relief.position.z = .055;
   group.add(relief);
   return group;

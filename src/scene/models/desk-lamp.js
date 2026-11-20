@@ -43,8 +43,7 @@ export function createDeskLamp(dark) {
   shade.castShadow = true;
   group.add(shade);
   const bulb = new THREE.MeshStandardMaterial({ color: '#fff0d8', emissive: '#ffe0a4', emissiveIntensity: 1.5 });
-  bulb.castShadow = false;
-  sphere(group, .075, [.13, .66, 0], bulb).castShadow = false;
+  sphere(shade, .07, [0, -.065, 0], bulb).castShadow = false;
   const light = new THREE.RectAreaLight('#ffcf95', 0, .26, .26);
   light.position.set(.14, .57, 0);
   light.lookAt(-.22, -.05, .05);

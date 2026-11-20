@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { randomSource } from '../random-source.js';
 
-export const FLOOR_TOP = -.0175;
+import { FLOOR_TOP } from '../../camera-geometry.js';
+export { FLOOR_TOP } from '../../camera-geometry.js';
 
 export function createAshFloor(loadSurface) {
   const material = new THREE.MeshStandardMaterial({ roughness: .52 });
-  loadSurface(material, 'white-ash.jpg', .5, [185, 167, 143]);
+  loadSurface(material, 'white-ash.webp', .5, [185, 167, 143]);
   const positions = [], uvs = [], indices = [];
   const random = randomSource(8619);
   const width = .283, bevel = .0015;

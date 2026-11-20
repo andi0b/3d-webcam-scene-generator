@@ -110,7 +110,7 @@ export function createSideWindow({ width, height, thickness }, loadSurface, dark
   const hardware = material('#4b4b46', .32, .72);
   const glazingSeal = material('#46382e', .82);
   const glassSpacer = material('#777a75', .5, .65);
-  loadSurface(sashWood, 'oak.png', 1.25, [155, 122, 86]);
+  loadSurface(sashWood, 'oak.webp', 1.25, [155, 122, 86]);
 
   function addFrame({ x, depth, bottom, top, minZ, maxZ, profile, bevel, bottomRail = true }) {
     const stileBottom = bottomRail ? bottom + profile : bottom;

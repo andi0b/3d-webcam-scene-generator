@@ -35,7 +35,7 @@ export function createRoomShell(sideOpening, rearOpening, loadSurface) {
   const exteriorPlaster = material('#ffffff');
   Object.assign(exteriorPlaster, exteriorPlasterMaps());
   const ceiling = material('#ffffff', .91);
-  loadSurface(ceiling, 'board-formed-concrete.jpg', .55, [167, 160, 147]);
+  loadSurface(ceiling, 'board-formed-concrete.webp', .55, [167, 160, 147]);
 
   box(group, [7.3, ROOM_HEIGHT, .18], [.4, ROOM_HEIGHT / 2, MIN_Z], wall);
   box(group, [.18, ROOM_HEIGHT, 6], [3.65, ROOM_HEIGHT / 2, 0], wall);

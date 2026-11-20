@@ -32,7 +32,7 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
   }
 
   return {
-    sync({ materialsChanged, lightsChanged }) {
+    sync({ materialsChanged, lightsChanged, visibilityChanged }) {
       if (failure) throw failure;
       const { width, height } = fastCanvas;
       if (!width || !height) return;
@@ -40,6 +40,7 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
       traceCamera.copy(camera);
       tracer.updateCamera();
       if (materialsChanged) tracer.updateMaterials();
+      if (visibilityChanged) tracer.updateTransforms();
       if (lightsChanged) {
         scene.updateMatrixWorld(true);
         withoutPreviewOnlyLights(scene, () => tracer.updateLights());

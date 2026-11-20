@@ -22,6 +22,7 @@ export function createPhotoreal(renderer, scene, camera, preview, report, report
   let enabled = false, failed = false, exporting = false, cancelled = false;
   let cancelPreparation;
   let pending = true, materialsChanged = true, lightsChanged = true, changed = performance.now();
+  let visibilityChanged = false;
   let contextGeneration = 0;
   let noise = 'none', frameCanvas, frameContext, cleanFrame;
 
@@ -72,9 +73,9 @@ function checkPreviewContext(generation) {
     if (cancelled) throw exportCancelled;
   }
 
-  async function prepareScene(checkActive) {
+  async function prepareScene(checkActive, includeArtwork = false) {
     checkActive();
-    await texturesReady();
+    await texturesReady({ includeArtwork });
     checkActive();
   }
 
@@ -129,7 +130,7 @@ function checkPreviewContext(generation) {
         checkPreviewContext(generation);
         denoiser = createGuidedDenoiser(renderer, preview, camera);
         pending = true;
-        materialsChanged = lightsChanged = false;
+        materialsChanged = lightsChanged = visibilityChanged = false;
       } catch (error) {
         if (generation === contextGeneration) releaseTracer();
         throw error;
@@ -149,10 +150,14 @@ function checkPreviewContext(generation) {
 
   function sync() {
     scene.updateMatrixWorld(true);
-    tracer.setCamera(camera);
-    if (materialsChanged) tracer.updateMaterials();
-    if (lightsChanged) withoutPreviewOnlyLights(scene, () => tracer.updateLights());
-    materialsChanged = lightsChanged = false;
+    if (visibilityChanged) {
+      withoutPreviewOnlyLights(scene, () => tracer.setScene(scene, camera));
+    } else {
+      tracer.setCamera(camera);
+      if (materialsChanged) tracer.updateMaterials();
+      if (lightsChanged) withoutPreviewOnlyLights(scene, () => tracer.updateLights());
+    }
+    materialsChanged = lightsChanged = visibilityChanged = false;
     pending = false;
   }
 
@@ -208,6 +213,7 @@ function checkPreviewContext(generation) {
       oidnPreview?.pause();
       if (enabled && oidnPreview && !exporting) report('Updating realistic preview…');
       pending = true;
+      visibilityChanged ||= kind === 'visibility';
       materialsChanged ||= kind === 'scene';
       lightsChanged ||= kind !== 'camera';
       changed = performance.now();
@@ -222,8 +228,8 @@ function checkPreviewContext(generation) {
       try {
         if (oidnPreview) {
           if (pending) {
-            oidnPreview.sync({ materialsChanged, lightsChanged });
-            pending = materialsChanged = lightsChanged = false;
+            oidnPreview.sync({ materialsChanged, lightsChanged, visibilityChanged });
+            pending = materialsChanged = lightsChanged = visibilityChanged = false;
           }
           oidnPreview.frame();
           return;
@@ -254,7 +260,7 @@ function checkPreviewContext(generation) {
         oidnPreview?.pause();
         reportExport({ stage: 'preparing' });
         await Promise.race([
-          prepareScene(checkCancelled),
+          prepareScene(checkCancelled, true),
           new Promise((_, reject) => { cancelPreparation = reject; }),
         ]);
         cancelPreparation = null;

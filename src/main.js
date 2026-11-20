@@ -3,8 +3,9 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 import { createPhotoreal } from './photoreal.js';
 import { createPipeline } from './render-pipeline.js';
 import { createRoom } from './scene/room.js';
+import { CAMERA_BASE_HEIGHT } from './camera-geometry.js';
 
-export async function startStudio({ viewport, settings: initialSettings, onStatus, onReady, onRealisticReady, onExport }) {
+export async function startStudio({ viewport, settings: initialSettings, onStatus, onArtworkError, onReady, onRealisticReady, onExport }) {
   let settings = { ...initialSettings };
   RectAreaLightUniformsLib.init();
   const renderer = new THREE.WebGLRenderer();
@@ -21,8 +22,9 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
   let firstFrame = true, qualityStage = 0, qualityAt = Infinity, reflectionVersion = -1;
   let previousLighting, materialsDirty = false;
   let textureError;
+  let deferredSettings;
 
-  const { scene, lighting, backdrop, ready } = createRoom(
+  const { scene, lighting, backdrop, ready, updateDecoration } = createRoom(
     import.meta.env.BASE_URL + 'assets/',
     renderer.capabilities.getMaxAnisotropy(),
     error => {
@@ -33,6 +35,7 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
       }
       materialsDirty = true;
     },
+    onArtworkError,
   );
   const camera = new THREE.PerspectiveCamera(48, 16 / 9, .1, 30);
   const pipeline = createPipeline(renderer, scene, camera, lighting.rasterLights);
@@ -62,11 +65,17 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
 
   function applyCamera() {
     const { horizontal: x, height: y, pan, tilt, zoom: fov } = settings;
-    camera.position.set(.3 + x * .5, 1.65 + y, 2.55);
+    camera.position.set(.3 + x * .5, CAMERA_BASE_HEIGHT + y, 2.55);
     camera.fov = fov;
     camera.lookAt(-.55 + x * .35, 1.7 + y, -2.8);
     camera.rotateOnWorldAxis(camera.up, -THREE.MathUtils.degToRad(pan));
     camera.rotateX(THREE.MathUtils.degToRad(tilt));
+    if (import.meta.env.DEV) {
+      const pos = new URLSearchParams(location.search).get('debugCamera')?.split(',').map(Number);
+      if (pos?.length === 6 && pos.every(Number.isFinite)) {
+        camera.position.set(...pos.slice(0, 3)); camera.lookAt(...pos.slice(3));
+      }
+    }
     camera.updateProjectionMatrix();
     cameraDirty = false;
     dirty = true;
@@ -111,6 +120,7 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
     dirty = true;
   });
 
+  updateDecoration(settings);
   syncControls();
   resize();
   await pipeline.compile();
@@ -152,23 +162,44 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
       photoreal.frame();
     }
   });
+
+  function update(next) {
+    if (photoreal.exporting) {
+      deferredSettings = next;
+      return;
+    }
+    const lightingKeys = ['view', 'mood', 'ceiling', 'weather', 'outside', 'desk', 'shelf', 'fill'];
+    const cameraKeys = ['horizontal', 'height', 'pan', 'tilt', 'zoom'];
+    lightingDirty ||= lightingKeys.some(key => settings[key] !== next[key]);
+    cameraDirty ||= cameraKeys.some(key => settings[key] !== next[key]);
+    const rollupChanged = settings.rollup !== next.rollup;
+    if (rollupChanged || ['frame1Image', 'frame2Image', 'rollupImage'].some(key => settings[key] !== next[key])) updateDecoration(next);
+    if (rollupChanged) {
+      lighting.invalidateShadows();
+      renderer.shadowMap.needsUpdate = true;
+      photoreal.invalidate('visibility');
+    }
+    if (settings.noise !== next.noise) photoreal.setNoise(next.noise);
+    if (settings.realistic !== next.realistic) {
+      photoreal.setEnabled(next.realistic);
+      dirty = true;
+    }
+    settings = { ...next };
+  }
+
   return {
-    update(next) {
-      const lightingKeys = ['view', 'mood', 'ceiling', 'weather', 'outside', 'desk', 'shelf', 'fill'];
-      const cameraKeys = ['horizontal', 'height', 'pan', 'tilt', 'zoom'];
-      lightingDirty ||= lightingKeys.some(key => settings[key] !== next[key]);
-      cameraDirty ||= cameraKeys.some(key => settings[key] !== next[key]);
-      if (settings.noise !== next.noise) photoreal.setNoise(next.noise);
-      if (settings.realistic !== next.realistic) {
-        photoreal.setEnabled(next.realistic);
-        dirty = true;
-      }
-      settings = { ...next };
-    },
+    update,
     async exportImage(quality, resolution) {
       syncControls();
       try { return await photoreal.exportImage(quality, resolution); }
-      finally { resize(); }
+      finally {
+        if (deferredSettings) {
+          const next = deferredSettings;
+          deferredSettings = undefined;
+          update(next);
+        }
+        resize();
+      }
     },
     cancelExport() { photoreal.cancel(); },
     dispose() { resizeObserver.disconnect(); renderer.setAnimationLoop(null); renderer.dispose(); },

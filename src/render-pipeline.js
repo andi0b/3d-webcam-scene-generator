@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/addons/postprocessing/SSAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { ExposureMeter } from './exposure-meter.js';
 
 const reflectionDelay = 160;
 
@@ -31,6 +32,8 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
   ao.maxDistance = .003;
   ao.enabled = false;
   composer.addPass(ao);
+  const exposureMeter = new ExposureMeter();
+  composer.addPass(exposureMeter);
   composer.addPass(new OutputPass());
   const smaa = new SMAAPass();
   smaa.enabled = false;
@@ -114,14 +117,16 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
     publishedVersion = version;
   }
 
-  function render() {
+  function render(meterExposure = false) {
     // Keep the last complete map while the next set of cube faces is captured.
     const environment = publishedVersion >= 0 ? previewEnvironment : null;
     withRasterLights(() => withSceneEnvironment(environment?.texture ?? null, environment ? .75 : 0, () => {
       ao.ssaoMaterial.uniforms.cameraProjectionMatrix.value.copy(camera.projectionMatrix);
       ao.ssaoMaterial.uniforms.cameraInverseProjectionMatrix.value.copy(camera.projectionMatrixInverse);
+      exposureMeter.enabled = meterExposure;
       composer.render();
     }));
+    return meterExposure ? exposureMeter.reading : undefined;
   }
 
   return {
@@ -162,6 +167,14 @@ export function createPipeline(renderer, scene, camera, rasterLights) {
         composer.setPixelRatio(ratio);
       }
       composer.setSize(w, h);
+    },
+    dispose() {
+      contextGeneration++;
+      for (const pass of composer.passes) pass.dispose();
+      composer.dispose();
+      previewEnvironment?.dispose();
+      previewCube.dispose();
+      pmrem.dispose();
     },
     render,
   };

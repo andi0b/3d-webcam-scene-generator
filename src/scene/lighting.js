@@ -14,10 +14,15 @@ const sunPresets = {
   night: { color: '#9eafd8', intensity: .108, direction: [-6.5, 3.4, 3.2], radius: .30 },
 };
 const sunDistance = 36;
-const weatherModes = {
-  sunny: { direct: 1, diffuse: .55 },
-  cloudy: { direct: 0, diffuse: .45 },
+const daylightWeather = {
+  sunny: { direct: 10, diffuse: 4 },
+  cloudy: { direct: 0, diffuse: 1 },
   foggy: { direct: 0, diffuse: .2 },
+};
+const nightWeather = {
+  sunny: { direct: 1, diffuse: .18, backdrop: .20, windowColor: '#a8bcf1' },
+  cloudy: { direct: 0, diffuse: .72, backdrop: .65, windowColor: '#b8c1dc' },
+  foggy: { direct: 0, diffuse: 1.1, backdrop: 3, windowColor: '#ced0db' },
 };
 
 export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLamp, shelfLamp, shelfWash, backdrop }) {
@@ -77,7 +82,7 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
       ceiling.diffuser.emissiveIntensity = ceilingSettings.glow;
 
       const sunlight = sunPresets[mood];
-      const conditions = weatherModes[weather];
+      const conditions = (isNight ? nightWeather : daylightWeather)[weather];
       const outsideDiffuse = outside ? conditions.diffuse : 0;
       sun.intensity = outside ? sunlight.intensity * conditions.direct : 0;
       sun.color.set(sunlight.color);
@@ -88,7 +93,7 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
         sunMood = mood;
       }
 
-      const windowColor = isNight ? '#a8bcf1' : mood === 'golden' ? '#ffe2bd' : '#eef4ff';
+      const windowColor = conditions.windowColor ?? (mood === 'golden' ? '#ffe2bd' : '#eef4ff');
       const windowIntensity = isNight ? .288 : mood === 'golden' ? 12.6 : 15.45;
       const windowFill = !isNight && conditions.direct ? .75 : 1;
       exteriorLight.color.set(windowColor);
@@ -97,7 +102,7 @@ export function createLighting(scene, { sideWindow, clerestory, ceiling, deskLam
       clerestory.light.intensity = windowIntensity * outsideDiffuse * .28;
       clerestory.glass.emissive.copy(clerestory.light.color);
       clerestory.glass.emissiveIntensity = clerestory.light.intensity * .18;
-      backdrop.material.emissiveIntensity = outsideDiffuse;
+      backdrop.material.emissiveIntensity = outside ? (conditions.backdrop ?? conditions.diffuse) : 0;
 
       deskLamp.light.intensity = deskOn ? 75 : 0;
       shelfLamp.light.intensity = shelfOn ? 5 : 0;

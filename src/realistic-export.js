@@ -1,5 +1,6 @@
 import { applyWebcamNoise } from './webcam-noise.js';
 import { withoutPreviewOnlyLights } from './realistic-lights.js';
+import { exposureMultiplier } from './exposure.js';
 
 export const EXPORT_SIZES = {
   '3k': { width: 3072, height: 1728 },
@@ -15,8 +16,8 @@ export async function createOidnRenderer(canvas, settings, onFailure, checkCance
     throw new Error('Realistic lighting requires WebGPU. Open Roomlight on localhost or HTTPS in a browser with WebGPU enabled.');
   }
 
-  const [{ WebGPURenderer, CustomToneMapping }, { acesFilmicToneMapping, dot, vec3 }, { WebGPUPathTracer, OIDNDenoiser, FSRUpscaler }, { initUNetFromURL }] =
-    await Promise.all([import('three/webgpu'), import('three/tsl'), import('three-gpu-pathtracer/webgpu'), import('oidn-webgpu')]);
+  const [{ WebGPURenderer, ACESFilmicToneMapping }, { WebGPUPathTracer, OIDNDenoiser, FSRUpscaler }, { initUNetFromURL }] =
+    await Promise.all([import('three/webgpu'), import('three-gpu-pathtracer/webgpu'), import('oidn-webgpu')]);
   checkCancelled();
 
   const renderer = new WebGPURenderer({ canvas, alpha: false, antialias: false, trackTimestamp: true });
@@ -59,16 +60,8 @@ export async function createOidnRenderer(canvas, settings, onFailure, checkCance
       throw new Error('The browser could not start WebGPU on this GPU.');
     }
     renderer.setPixelRatio(1);
-    // Keep the ACES Filmic look in the shadows and midtones, but gently
-    // compress bright scene values before they reach its highlight shoulder.
-    renderer.library.addToneMapping((color, exposure) => {
-      const exposed = color.mul(exposure);
-      const luminance = dot(exposed, vec3(.2126, .7152, .0722));
-      const compression = luminance.sub(.7).max(0).mul(.75).add(1);
-      return acesFilmicToneMapping(exposed.div(compression), 1);
-    }, CustomToneMapping);
-    renderer.toneMapping = CustomToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = ACESFilmicToneMapping;
+    renderer.toneMappingExposure = settings.exposure ?? exposureMultiplier();
 
     tracer = new WebGPUPathTracer(renderer);
     tracer.renderScale = settings.renderScale ?? 1;

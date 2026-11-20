@@ -23,6 +23,7 @@ export function createPhotoreal(renderer, scene, camera, preview, report, report
   let cancelPreparation;
   let pending = true, materialsChanged = true, lightsChanged = true, changed = performance.now();
   let visibilityChanged = false;
+  let presentedExposure;
   let contextGeneration = 0;
   let noise = 'none', frameCanvas, frameContext, cleanFrame;
 
@@ -100,7 +101,8 @@ function checkPreviewContext(generation) {
         if (exporting) return;
         if (navigator.gpu && !webGpuUnavailable) {
           try {
-            const candidate = await createOidnPreview(renderer.domElement, scene, camera, OIDN_PREVIEW_SETTINGS, report, showFrame);
+            const settings = { ...OIDN_PREVIEW_SETTINGS, exposure: renderer.toneMappingExposure };
+            const candidate = await createOidnPreview(renderer.domElement, scene, camera, settings, report, showFrame);
             if (generation !== contextGeneration || gl.isContextLost() || exporting) {
               await candidate.dispose();
               checkPreviewContext(generation);
@@ -231,18 +233,20 @@ function checkPreviewContext(generation) {
             oidnPreview.sync({ materialsChanged, lightsChanged, visibilityChanged });
             pending = materialsChanged = lightsChanged = visibilityChanged = false;
           }
-          oidnPreview.frame();
+          oidnPreview.frame(renderer.toneMappingExposure);
           return;
         }
         if (pending) {
           configurePreview();
           sync();
         }
-        if (tracer.samples >= PREVIEW_SETTINGS.samples) return;
-        tracer.renderSample();
+        const refining = tracer.samples < PREVIEW_SETTINGS.samples;
+        if (!refining && presentedExposure === renderer.toneMappingExposure) return;
+        if (refining) tracer.renderSample();
         if (tracer.samples >= PREVIEW_SETTINGS.samples) {
           denoiser.render(tracer.target.texture, tracer.target.width, tracer.target.height);
           showFrame(renderer.domElement);
+          presentedExposure = renderer.toneMappingExposure;
           report('WebGL realistic preview ready · export adds detail');
         } else {
           report(tracer.isCompiling ? 'Preparing realistic lighting…' : `Refining light · ${Math.floor(tracer.samples)} / ${PREVIEW_SETTINGS.samples}`);
@@ -256,6 +260,7 @@ function checkPreviewContext(generation) {
       exporting = true;
       cancelled = false;
       const exportNoise = noise;
+      const exposure = renderer.toneMappingExposure;
       try {
         oidnPreview?.pause();
         reportExport({ stage: 'preparing' });
@@ -265,7 +270,7 @@ function checkPreviewContext(generation) {
         ]);
         cancelPreparation = null;
         checkCancelled();
-        const settings = { ...(EXPORT_PRESETS[preset] ?? EXPORT_PRESETS.quick), noise: exportNoise };
+        const settings = { ...(EXPORT_PRESETS[preset] ?? EXPORT_PRESETS.quick), noise: exportNoise, exposure };
         const dimensions = EXPORT_SIZES[resolution] ?? EXPORT_SIZES['1080'];
         const exportCamera = camera.clone();
         exportCamera.aspect = dimensions.width / dimensions.height;

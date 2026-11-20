@@ -50,7 +50,7 @@
   let selectedTab = $state(hmrData?.selectedTab || 'camera');
   let activeCameraProfile = $state(hmrData?.activeCameraProfile || ''), activeDecorationProfile = $state(hmrData?.activeDecorationProfile || '');
   const hmrSettings = hmrData?.settings;
-  let settings = $state({ view:'city', mood:'day', weather:'sunny', ceiling:'low', desk:true, shelf:true, outside:true, fill:true, horizontal:0, height:0, tilt:0, pan:0, zoom:48, noise:'none', realistic:false, rollup:'retracted', frame1:'', frame2:'', rollupArtwork:'', ...hmrSettings });
+  let settings = $state({ view:'city', mood:'day', weather:'sunny', ceiling:'low', desk:true, shelf:true, outside:true, fill:true, horizontal:0, height:0, tilt:0, pan:0, zoom:48, noise:'none', exposureEV:0, autoExposure:false, realistic:false, rollup:'retracted', frame1:'', frame2:'', rollupArtwork:'', ...hmrSettings });
   const artworkFields = ['frame1', 'frame2', 'rollupArtwork'];
   let images = $state([]), imageError = $state(''), libraryReady = $state(false), libraryLoading = $state(true);
   let artworkError = $state('');
@@ -180,6 +180,7 @@
     return () => { disposed = true; imageChannel?.close(); imageChannel = undefined; studio?.dispose(); if (downloadUrl) URL.revokeObjectURL(downloadUrl); };
   });
   function resetCamera() { Object.assign(settings, { horizontal:0, height:0, tilt:0, pan:0, zoom:48 }); }
+  function formatExposure(value) { return `${value > 0 ? '+' : ''}${value.toFixed(1)} EV`; }
   function reportExport({ stage, progress, message }) {
     if (cancelling && !['cancelling','cancelled','error'].includes(stage)) return;
     exportStage = stage;
@@ -237,6 +238,8 @@
     </div>
     <Collapsible class="section advanced camera"><CollapsibleTrigger><ChevronDown size={15} aria-hidden="true" /> Advanced camera settings</CollapsibleTrigger><CollapsiblePanel>
       <CameraSlider label="Look left / right" bind:value={settings.pan} min={-180} max={180} step={1} />
+      <SettingSwitch label="Auto exposure" accessibleDescription="Prioritizes the upper-right triangle of the preview." bind:checked={settings.autoExposure} disabled={exporting} />
+      <CameraSlider label={settings.autoExposure ? 'Exposure compensation' : 'Exposure'} bind:value={settings.exposureEV} min={-3} max={3} step={0.1} format={formatExposure} display={formatExposure(settings.exposureEV)} disabled={exporting} />
     </CollapsiblePanel></Collapsible>
     <div class="section"><ProfileControls kind="camera" fields={['horizontal','height','tilt','pan','zoom']} bind:active={activeCameraProfile} {settings} onLoad={next => Object.assign(settings, next)} /></div></TabsPanel>
     <TabsPanel value="decor" keepMounted>

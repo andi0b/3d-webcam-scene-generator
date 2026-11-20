@@ -4,6 +4,7 @@ import { createPhotoreal } from './photoreal.js';
 import { createPipeline } from './render-pipeline.js';
 import { createRoom } from './scene/room.js';
 import { CAMERA_BASE_HEIGHT } from './camera-geometry.js';
+import { exposureMultiplier } from './exposure.js';
 
 export async function startStudio({ viewport, settings: initialSettings, onStatus, onArtworkError, onReady, onRealisticReady, onExport }) {
   let settings = { ...initialSettings };
@@ -15,7 +16,7 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = exposureMultiplier(settings.exposureEV);
   viewport.appendChild(renderer.domElement);
 
   let dirty = true, cameraDirty = true, lightingDirty = true;
@@ -23,6 +24,8 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
   let previousLighting, materialsDirty = false;
   let textureError;
   let deferredSettings;
+  let automaticEV = 0, targetEV = 0, exposureAt = 0;
+  let needsMetering = false, exposureReading;
 
   const { scene, lighting, backdrop, ready, updateDecoration } = createRoom(
     import.meta.env.BASE_URL + 'assets/',
@@ -43,6 +46,30 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
   photoreal.setNoise(settings.noise);
   const gl = renderer.getContext();
   const renderSize = new THREE.Vector2();
+
+  function applyExposure() {
+    renderer.toneMappingExposure = exposureMultiplier((settings.exposureEV ?? 0) + automaticEV);
+    dirty = true;
+  }
+
+  function adaptExposure(now) {
+    if (now < exposureAt || automaticEV === targetEV) return;
+    const delta = targetEV - automaticEV;
+    automaticEV = Math.abs(delta) < .025 ? targetEV : automaticEV + delta * (delta < 0 ? .42 : .28);
+    exposureAt = now + 65;
+    applyExposure();
+  }
+
+  function meterExposure(reading) {
+    exposureReading = reading;
+    reading.then(value => {
+      if (exposureReading === reading) targetEV = value;
+    }).catch(error => {
+      if (exposureReading === reading && !gl.isContextLost()) console.warn('Could not meter exposure', error);
+    }).finally(() => {
+      if (exposureReading === reading) exposureReading = undefined;
+    });
+  }
 
   function applyLighting() {
     const { view, mood, ceiling: ceilingMode, weather, outside, desk: deskOn, shelf: shelfOn, fill: fillOn } = settings;
@@ -114,6 +141,7 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
   resizeObserver.observe(viewport);
 
   renderer.domElement.addEventListener('webglcontextrestored', () => {
+    exposureReading = undefined;
     pipeline.resetReflections();
     lighting.invalidateShadows();
     renderer.shadowMap.needsUpdate = true;
@@ -145,8 +173,16 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
       reflectionVersion = pipeline.reflectionVersion;
       dirty = true;
     }
+    if (settings.autoExposure && dirty) needsMetering = true;
+    const measure = needsMetering && !exposureReading;
+    if (settings.autoExposure) adaptExposure(now);
+    dirty ||= measure;
     if (dirty) {
-      pipeline.render();
+      const reading = pipeline.render(measure);
+      if (reading) {
+        needsMetering = false;
+        meterExposure(reading);
+      }
       dirty = false;
       if (firstFrame) {
         firstFrame = false;
@@ -180,11 +216,19 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
       photoreal.invalidate('visibility');
     }
     if (settings.noise !== next.noise) photoreal.setNoise(next.noise);
+    const meterModeChanged = settings.autoExposure !== next.autoExposure;
+    const exposureChanged = meterModeChanged || settings.exposureEV !== next.exposureEV;
     if (settings.realistic !== next.realistic) {
       photoreal.setEnabled(next.realistic);
       dirty = true;
     }
     settings = { ...next };
+    if (meterModeChanged) {
+      exposureReading = undefined;
+      needsMetering = false;
+      automaticEV = targetEV = 0;
+    }
+    if (exposureChanged) applyExposure();
   }
 
   return {
@@ -202,6 +246,12 @@ export async function startStudio({ viewport, settings: initialSettings, onStatu
       }
     },
     cancelExport() { photoreal.cancel(); },
-    dispose() { resizeObserver.disconnect(); renderer.setAnimationLoop(null); renderer.dispose(); },
+    dispose() {
+      exposureReading = undefined;
+      resizeObserver.disconnect();
+      renderer.setAnimationLoop(null);
+      pipeline.dispose();
+      renderer.dispose();
+    },
   };
 }

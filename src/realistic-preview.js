@@ -30,6 +30,13 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
     tracer.reset();
   }
 
+  function present() {
+    tracer.renderToCanvas = true;
+    tracer.renderSample();
+    if (failure) throw failure;
+    showFrame(canvas);
+  }
+
   return {
     sync({ materialsChanged, lightsChanged, visibilityChanged }) {
       if (failure) throw failure;
@@ -48,16 +55,18 @@ export async function createOidnPreview(fastCanvas, scene, camera, settings, rep
       rendering = true;
       report('Preparing realistic lighting…');
     },
-    frame() {
+    frame(exposure = renderer.toneMappingExposure) {
       if (failure) throw failure;
-      if (!rendering) return;
+      const exposureChanged = renderer.toneMappingExposure !== exposure;
+      renderer.toneMappingExposure = exposure;
+      if (!rendering) {
+        if (exposureChanged && tracer.renderToCanvas) present();
+        return;
+      }
       tracer.renderSample();
       if (failure) throw failure;
       if (tracer.complete) {
-        tracer.renderToCanvas = true;
-        tracer.renderSample();
-        if (failure) throw failure;
-        showFrame(canvas);
+        present();
         rendering = false;
         report('Realistic preview ready');
       }
